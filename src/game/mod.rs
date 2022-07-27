@@ -1,5 +1,6 @@
 use std::ops::IndexMut;
-use std::convert::TryInto;
+use std::convert::{TryInto};
+use crate::num_cast::NumCast;
 
 pub fn update(raw_canvas: &mut dyn RawCanvas, input: &Input) {
     update_impl(Canvas::from_raw(raw_canvas), input)
@@ -26,14 +27,18 @@ pub struct Mouse {
 fn update_impl(mut c: Canvas, input: &Input) {
     for y in 0..c.height() {
         for x in 0..c.width() {
-            c.get_mut(x, y).map(|p| *p = (x as u32) << 8 | (y as u32));
+            if let Some(pixel) = c.get_mut(x, y) {
+                *pixel = x.num_cast::<u32>() << 8 | y.num_cast::<u32>();
+            }
         }
     }
 
     let mouse = &input.mouse;
     for y in mouse.y..(mouse.y + 4) {
         for x in mouse.x..(mouse.x + 4) {
-            c.get_mut(x, y).map(|p| *p = 0x00FFFFFF);
+            if let Some(pixel) = c.get_mut(x, y) {
+                *pixel = 0x00FF_FFFF;
+            }
         }
     }
 }
@@ -52,11 +57,11 @@ impl<'a> Canvas<'a> {
     }
 
     pub fn width(&self) -> i32 {
-        self.inner.width().try_into().unwrap()
+        self.inner.width().num_cast()
     }
 
     pub fn height(&self) -> i32 {
-        self.inner.height().try_into().unwrap()
+        self.inner.height().num_cast()
     }
 
     pub fn get_mut(&mut self, x: i32, y: i32) -> Option<&mut u32> {
@@ -64,7 +69,7 @@ impl<'a> Canvas<'a> {
         let height = self.height();
 
         if x > 0 && x < width && y > 0 && y < height {
-            Some(&mut self.inner[(y*width + x).try_into().unwrap()])
+            Some(&mut self.inner[(y*width + x).num_cast()])
         } else {
             None
         }

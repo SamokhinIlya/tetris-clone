@@ -1,3 +1,11 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::semicolon_if_nothing_returned)]
+
+mod game;
+mod num_cast;
+
+use num_cast::NumCast;
+use game::RawCanvas;
 use anyhow::{bail, Context};
 use windows::{
     core::PCSTR,
@@ -6,6 +14,7 @@ use windows::{
         System::LibraryLoader::GetModuleHandleA,
         UI::WindowsAndMessaging::{
             WNDCLASSA,
+            WINDOW_EX_STYLE,
             RegisterClassA,
             CreateWindowExA,
             ShowWindow,
@@ -38,9 +47,6 @@ use windows::{
     },
 };
 
-mod game;
-use game::RawCanvas;
-
 fn main() -> anyhow::Result<()> {
     let instance = unsafe { GetModuleHandleA(PCSTR::default()) }.context("GetModuleHandleA failed")?;
     if instance.is_invalid() {
@@ -61,7 +67,7 @@ fn main() -> anyhow::Result<()> {
 
     let window = unsafe {
         CreateWindowExA(
-            Default::default(),
+            WINDOW_EX_STYLE::default(),
             class_name,
             PCSTR(&b"hello\0"[0]),
             WS_OVERLAPPEDWINDOW,
@@ -98,7 +104,7 @@ fn main() -> anyhow::Result<()> {
                     input.mouse.right = msg.wParam.0 & MK_RBUTTON as usize != 0;
 
                     let [x, y, _, _] = unsafe { std::mem::transmute::<_, [u16; 4]>(msg.lParam) };
-                    [input.mouse.y, input.mouse.x] = [y as _, x as _];
+                    [input.mouse.y, input.mouse.x] = [y.into(), x.into()];
                 },
                 _ => unsafe {
                     TranslateMessage(&msg);
@@ -110,7 +116,7 @@ fn main() -> anyhow::Result<()> {
         let title = std::ffi::CString::new(format!("cursor: {:?}", (input.mouse.x, input.mouse.y))).expect("input has nul byte");
         unsafe {
             // TODO: check result
-            SetWindowTextA(window, PCSTR(title.as_ptr() as *const _));
+            SetWindowTextA(window, PCSTR(title.as_ptr().cast()));
         }
 
         let mut client_rect = RECT::default();
@@ -121,7 +127,7 @@ fn main() -> anyhow::Result<()> {
         let window_height = client_rect.bottom - client_rect.top;
 
         if resize_bitmap {
-            bitmap.resize(window_width as _, window_height as _).context("bitmap.resize failed")?;
+            bitmap.resize(window_width.num_cast(), window_height.num_cast()).context("bitmap.resize failed")?;
             resize_bitmap = false;
         }
 
@@ -131,7 +137,7 @@ fn main() -> anyhow::Result<()> {
             StretchDIBits(
                 device_context,
                 0, 0, window_width, window_height,
-                0, 0, bitmap.width as _, bitmap.height as _,
+                0, 0, bitmap.width.num_cast(), bitmap.height.num_cast(),
                 bitmap.ptr as *const _,
                 &bitmap.info,
                 DIB_RGB_COLORS,
@@ -210,7 +216,7 @@ impl Bitmap {
         use std::mem::{size_of, align_of};
 
         let layout = Layout::from_size_align(width * height * size_of::<BitmapData>(), align_of::<BitmapData>())?;
-        let ptr = unsafe { alloc(layout) } as *mut BitmapData;
+        let ptr: *mut BitmapData = unsafe { alloc(layout) }.cast();
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
@@ -221,9 +227,9 @@ impl Bitmap {
             height,
             info: BITMAPINFO {
                 bmiHeader: BITMAPINFOHEADER {
-                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as _,
-                    biWidth: width as i32,
-                    biHeight: -(height as i32),
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>().num_cast(),
+                    biWidth: width.num_cast::<i32>(),
+                    biHeight: -height.num_cast::<i32>(),
                     biPlanes: 1,
                     biBitCount: 32,
                     biCompression: BI_RGB as _,
@@ -243,7 +249,7 @@ impl Bitmap {
         use std::mem::{size_of, align_of};
 
         let layout = Layout::from_size_align(self.width * self.height * size_of::<BitmapData>(), align_of::<BitmapData>())?;
-        let ptr = unsafe { realloc(self.ptr as *mut _, layout, width * height * size_of::<BitmapData>()) } as *mut BitmapData;
+        let ptr: *mut BitmapData = unsafe { realloc(self.ptr.cast(), layout, width * height * size_of::<BitmapData>()) }.cast();
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
@@ -251,8 +257,8 @@ impl Bitmap {
         self.ptr = ptr;
         self.width = width;
         self.height = height;
-        self.info.bmiHeader.biWidth = width as i32;
-        self.info.bmiHeader.biHeight = -(height as i32);
+        self.info.bmiHeader.biWidth = width.num_cast::<i32>();
+        self.info.bmiHeader.biHeight = -height.num_cast::<i32>();
         Ok(())
     }
 }
