@@ -1,0 +1,258 @@
+use anyhow::{bail, Context};
+use windows::{
+    core::PCSTR,
+    Win32::{
+        Foundation::{HWND, WPARAM, LPARAM, LRESULT, RECT, GetLastError},
+        System::LibraryLoader::GetModuleHandleA,
+        UI::WindowsAndMessaging::{
+            WNDCLASSA,
+            RegisterClassA,
+            CreateWindowExA,
+            ShowWindow,
+            DefWindowProcA,
+            PeekMessageA,
+            TranslateMessage,
+            DispatchMessageA,
+            GetClientRect,
+            PostQuitMessage,
+            PostMessageA,
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT,
+            CS_HREDRAW,
+            CS_VREDRAW,
+            PM_REMOVE,
+            WM_QUIT,
+            WM_MOUSEMOVE,
+            WM_EXITSIZEMOVE,
+            MK_LBUTTON,
+            MK_RBUTTON,
+            WM_DESTROY,
+            WM_SETCURSOR,
+            HMENU,
+            SHOW_WINDOW_CMD,
+            MSG,
+            SetCursor,
+            HCURSOR, SetWindowTextA,
+        },
+        Graphics::Gdi::{GetDC, StretchDIBits, DIB_RGB_COLORS, SRCCOPY, BITMAPINFO, BITMAPINFOHEADER, BI_RGB},
+    },
+};
+
+mod game;
+use game::RawCanvas;
+
+fn main() -> anyhow::Result<()> {
+    let instance = unsafe { GetModuleHandleA(PCSTR::default()) }.context("GetModuleHandleA failed")?;
+    if instance.is_invalid() {
+        bail!("hinstance is invalid: {:?}", instance)
+    }
+
+    let class_name = PCSTR(&b"illuminator\0"[0]);
+
+    let window_class = WNDCLASSA {
+        style: CS_HREDRAW | CS_VREDRAW,
+        lpfnWndProc: Some(win_proc),
+        lpszClassName: class_name,
+        ..Default::default()
+    };
+    if unsafe { RegisterClassA(&window_class) } == 0 {
+        bail!("RegisterClassA failed: GetLastError() -> {:?}", unsafe { GetLastError() })
+    }
+
+    let window = unsafe {
+        CreateWindowExA(
+            Default::default(),
+            class_name,
+            PCSTR(&b"hello\0"[0]),
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+            HWND(0),
+            HMENU(0),
+            instance,
+            std::ptr::null()
+        )
+    };
+    if window == HWND(0) {
+        bail!("CreateWindowExA failed: GetLastError() -> {:?}", unsafe { GetLastError() });
+    }
+    unsafe { ShowWindow(window, SHOW_WINDOW_CMD(10)) };
+
+    let device_context = unsafe { GetDC(window) };
+    if device_context.is_invalid() {
+        bail!("GetDC failed");
+    }
+
+    let mut input = game::Input::default();
+    let mut bitmap = Bitmap::with_size(1280, 720).context("Bitmap::with_size failed")?;
+    let mut resize_bitmap = true;
+    'main: loop {
+        let mut msg = MSG::default();
+        while unsafe { PeekMessageA(&mut msg, HWND(0), 0, 0, PM_REMOVE) }.as_bool() {
+            match msg.message {
+                WM_QUIT => break 'main,
+                WM_EXITSIZEMOVE => {
+                    resize_bitmap = true;
+                },
+                WM_MOUSEMOVE => {
+                    input.mouse.left = msg.wParam.0 & MK_LBUTTON as usize != 0;
+                    input.mouse.right = msg.wParam.0 & MK_RBUTTON as usize != 0;
+
+                    let [x, y, _, _] = unsafe { std::mem::transmute::<_, [u16; 4]>(msg.lParam) };
+                    [input.mouse.y, input.mouse.x] = [y as _, x as _];
+                },
+                _ => unsafe {
+                    TranslateMessage(&msg);
+                    DispatchMessageA(&msg);
+                },
+            }
+        }
+
+        let title = std::ffi::CString::new(format!("cursor: {:?}", (input.mouse.x, input.mouse.y))).expect("input has nul byte");
+        unsafe {
+            // TODO: check result
+            SetWindowTextA(window, PCSTR(title.as_ptr() as *const _));
+        }
+
+        let mut client_rect = RECT::default();
+        if !unsafe { GetClientRect(window, &mut client_rect) }.as_bool() {
+            bail!("GetClientRect failed: GetLastError() -> {:?}", unsafe { GetLastError() })
+        }
+        let window_width = client_rect.right - client_rect.left;
+        let window_height = client_rect.bottom - client_rect.top;
+
+        if resize_bitmap {
+            bitmap.resize(window_width as _, window_height as _).context("bitmap.resize failed")?;
+            resize_bitmap = false;
+        }
+
+        game::update(&mut bitmap, &input);
+
+        let result = unsafe {
+            StretchDIBits(
+                device_context,
+                0, 0, window_width, window_height,
+                0, 0, bitmap.width as _, bitmap.height as _,
+                bitmap.ptr as *const _,
+                &bitmap.info,
+                DIB_RGB_COLORS,
+                SRCCOPY,
+            )
+        };
+        if result == 0 {
+            bail!("StretchDIBits failed");
+        }
+    }
+
+    Ok(())
+}
+
+unsafe extern "system" fn win_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    match msg {
+        WM_DESTROY => {
+            PostQuitMessage(0);
+            LRESULT(0)
+        },
+        WM_SETCURSOR => {
+            SetCursor(HCURSOR(0));
+            LRESULT(0)
+        },
+        WM_EXITSIZEMOVE => {
+            // TODO: check result
+            PostMessageA(hwnd, msg, wparam, lparam);
+            LRESULT(0)
+        },
+        _ => DefWindowProcA(hwnd, msg, wparam, lparam)
+    }
+}
+
+type BitmapData = u32;
+
+struct Bitmap {
+    ptr: *mut BitmapData,
+    width: usize,
+    height: usize,
+    info: BITMAPINFO,
+}
+
+impl RawCanvas for Bitmap {
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl std::ops::Index<usize> for Bitmap {
+    type Output = BitmapData;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let size = self.size();
+        assert!(index <= size, "index = {}, size = {}", index, size);
+
+        unsafe { &*self.ptr.add(index) }
+    }
+}
+
+impl std::ops::IndexMut<usize> for Bitmap {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        let size = self.size();
+        assert!(index <= size, "index = {}, size = {}", index, size);
+
+        unsafe { &mut *self.ptr.add(index) }
+    }
+}
+
+impl Bitmap {
+    fn with_size(width: usize, height: usize) -> Result<Self, std::alloc::LayoutError> {
+        use std::alloc::{alloc, Layout, handle_alloc_error};
+        use std::mem::{size_of, align_of};
+
+        let layout = Layout::from_size_align(width * height * size_of::<BitmapData>(), align_of::<BitmapData>())?;
+        let ptr = unsafe { alloc(layout) } as *mut BitmapData;
+        if ptr.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        Ok(Self {
+            ptr,
+            width,
+            height,
+            info: BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as _,
+                    biWidth: width as i32,
+                    biHeight: -(height as i32),
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB as _,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        })
+    }
+
+    fn size(&self) -> usize {
+        (self.width * self.height) as _
+    }
+
+    fn resize(&mut self, width: usize, height: usize) -> Result<(), std::alloc::LayoutError> {
+        use std::alloc::{realloc, Layout, handle_alloc_error};
+        use std::mem::{size_of, align_of};
+
+        let layout = Layout::from_size_align(self.width * self.height * size_of::<BitmapData>(), align_of::<BitmapData>())?;
+        let ptr = unsafe { realloc(self.ptr as *mut _, layout, width * height * size_of::<BitmapData>()) } as *mut BitmapData;
+        if ptr.is_null() {
+            handle_alloc_error(layout);
+        }
+
+        self.ptr = ptr;
+        self.width = width;
+        self.height = height;
+        self.info.bmiHeader.biWidth = width as i32;
+        self.info.bmiHeader.biHeight = -(height as i32);
+        Ok(())
+    }
+}
