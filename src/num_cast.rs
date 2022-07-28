@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 
 pub trait NumCast: Num {
-    /// Converts this type into the (usually inferred) input type.
+    /// Short hand for `self.try_into().unwrap()` for numbers.
     ///
     /// # Panics
     /// 
@@ -14,10 +14,10 @@ pub trait NumCast: Num {
 
 impl<U: Num> NumCast for U {
     fn num_cast<T>(self) -> T
-        where T: Num + TryFrom<U>,
+        where T: Num + TryFrom<Self>,
               <T as TryFrom<Self>>::Error: Debug
     {
-        T::try_from(self).expect("cast failed")
+        self.try_into().unwrap()
     }
 }
 
