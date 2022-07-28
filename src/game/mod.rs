@@ -24,23 +24,74 @@ pub struct Mouse {
     pub right: bool,
 }
 
+mod color {
+    pub const BLACK: u32 = 0x0000_0000;
+    pub const WHITE: u32 = 0x00FF_FFFF;
+}
+
+type Bucket = [[bool; 10]; 20];
+const SIZE: i32 = 30;
+
 fn update_impl(mut c: Canvas, input: &Input) {
-    for y in 0..c.height() {
-        for x in 0..c.width() {
-            if let Some(pixel) = c.get_mut(x, y) {
-                *pixel = x.num_cast::<u32>() << 8 | y.num_cast::<u32>();
+    clear(&mut c);
+
+    let cells = [[true; 10]; 20];
+    draw_bucket(&mut c, &cells);
+
+    let mouse = &input.mouse;
+    draw_cell(&mut c, mouse.x, mouse.y);
+}
+
+fn draw_bucket(c: &mut Canvas, bucket: &Bucket) {
+    let bucket_width = bucket[0].len().num_cast::<i32>() * SIZE;
+    let bucket_height = bucket.len().num_cast::<i32>() * SIZE;
+
+    let x0 = c.width() / 2 - bucket_width / 2;
+    let y0 = c.height() / 2 - bucket_height / 2;
+
+    for (y, line) in bucket.iter().enumerate() {
+        for (x, cell) in line.iter().enumerate() {
+            if *cell {
+                draw_cell(c, x0 + x.num_cast::<i32>() * SIZE, y0 + y.num_cast::<i32>() * SIZE);
             }
+        }
+    }
+}
+
+fn draw_cell(c: &mut Canvas, x0: i32, y0: i32) {
+    const COLOR_SWITCH: [i32; 2] = [SIZE - 2, SIZE - 8];
+
+    fn current(foreground: bool) -> u32 {
+        if foreground {
+            color::WHITE
+        } else {
+            color::BLACK
         }
     }
 
-    let mouse = &input.mouse;
-    for y in mouse.y..(mouse.y + 4) {
-        for x in mouse.x..(mouse.x + 4) {
+    let mut foreground = false;
+    fill_square(c, current(foreground), x0, y0, x0 + SIZE, y0 + SIZE);
+
+    for n in COLOR_SWITCH {
+        foreground = !foreground;
+        fill_square(c, current(foreground), x0 + SIZE - n, y0 + SIZE - n, x0 + n, y0 + n);
+    }
+}
+
+fn fill_square(c: &mut Canvas, color: u32, x0: i32, y0: i32, x1: i32, y1: i32) {
+    for y in y0..y1 {
+        for x in x0..x1 {
             if let Some(pixel) = c.get_mut(x, y) {
-                *pixel = 0x00FF_FFFF;
+                *pixel = color;
             }
         }
     }
+}
+
+fn clear(c: &mut Canvas) {
+    let width = c.width();
+    let height = c.height();
+    fill_square(c, color::BLACK, 0, 0, width, height);
 }
 
 struct Canvas<'a> {
