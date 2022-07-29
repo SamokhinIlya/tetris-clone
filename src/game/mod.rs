@@ -1,9 +1,32 @@
 use std::ops::IndexMut;
-use std::convert::{TryInto};
+use std::convert::TryInto;
 use crate::num_cast::NumCast;
 
-pub fn update(raw_canvas: &mut dyn RawCanvas, input: &Input) {
-    update_impl(Canvas::from_raw(raw_canvas), input)
+pub fn update(state: &mut State, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
+    update_impl(state, Canvas::from_raw(raw_canvas), input, dt)
+}
+
+type Bucket = [[bool; 10]; 20];
+const SIZE: i32 = 30;
+
+const TICK: f64 = 0.5;
+
+pub struct State {
+    spawned: bool,
+    cells: Bucket,
+    tick: f64,
+}
+
+impl State {
+    pub fn new() -> Self {
+        let cells = [[false; 10]; 20];
+
+        Self {
+            spawned: false,
+            cells,
+            tick: TICK,
+        }
+    }
 }
 
 pub trait RawCanvas: IndexMut<usize, Output=u32> {
@@ -29,36 +52,76 @@ mod color {
     pub const WHITE: u32 = 0x00FF_FFFF;
 }
 
-type Bucket = [[bool; 10]; 20];
-const SIZE: i32 = 30;
+fn update_impl(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
+    clear(&mut canvas);
 
-fn update_impl(mut c: Canvas, input: &Input) {
-    clear(&mut c);
+    let mut tick = false;
+    state.tick -= dt;
+    dbg!(state.tick);
+    if state.tick < 0.0 {
+        state.tick = TICK;
+        tick = true;
+    }
 
-    let cells = [[true; 10]; 20];
-    draw_bucket(&mut c, &cells);
+    if state.spawned {
+        if tick {
+            let mut falling_cells = Vec::new();
+            for (y, line) in state.cells.iter().enumerate().rev() {
+                for (x, cell) in line.iter().enumerate() {
+                    if *cell {
+                        falling_cells.push([x, y]);
+                    }
+                }
+            }
+
+            for [x, y] in falling_cells {
+                if y < state.cells.len() - 1 && !state.cells[y + 1][x] {
+                    state.cells[y][x] = false;
+                    state.cells[y + 1][x] = true;
+                }
+            }
+        }
+    } else {
+        let width = state.cells[0].len();
+        for i in 0..5 {
+            state.cells[i][i] = true;
+            state.cells[i][width - 1 - i] = true;
+        }
+        state.spawned = true;
+    }
+    draw_bucket(&mut canvas, &state.cells);
 
     let mouse = &input.mouse;
-    draw_cell(&mut c, mouse.x, mouse.y);
+    draw_cell(&mut canvas, mouse.x, mouse.y);
 }
 
-fn draw_bucket(c: &mut Canvas, bucket: &Bucket) {
+fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket) {
     let bucket_width = bucket[0].len().num_cast::<i32>() * SIZE;
     let bucket_height = bucket.len().num_cast::<i32>() * SIZE;
 
-    let x0 = c.width() / 2 - bucket_width / 2;
-    let y0 = c.height() / 2 - bucket_height / 2;
+    let x0 = canvas.width() / 2 - bucket_width / 2;
+    let y0 = canvas.height() / 2 - bucket_height / 2;
+
+    for y in y0..(y0 + bucket_height) {
+        for x in x0..(x0 + bucket_width) {
+            if y == y0 || y == (y0 + bucket_height - 1) || x == x0 || x == (x0 + bucket_width - 1) {
+                if let Some(pixel) = canvas.get_mut(x, y) {
+                    *pixel = color::WHITE;
+                }
+            }
+        }
+    }
 
     for (y, line) in bucket.iter().enumerate() {
         for (x, cell) in line.iter().enumerate() {
             if *cell {
-                draw_cell(c, x0 + x.num_cast::<i32>() * SIZE, y0 + y.num_cast::<i32>() * SIZE);
+                draw_cell(canvas, x0 + x.num_cast::<i32>() * SIZE, y0 + y.num_cast::<i32>() * SIZE);
             }
         }
     }
 }
 
-fn draw_cell(c: &mut Canvas, x0: i32, y0: i32) {
+fn draw_cell(canvas: &mut Canvas, x0: i32, y0: i32) {
     const COLOR_SWITCH: [i32; 2] = [SIZE - 2, SIZE - 8];
 
     fn current(foreground: bool) -> u32 {
@@ -70,28 +133,28 @@ fn draw_cell(c: &mut Canvas, x0: i32, y0: i32) {
     }
 
     let mut foreground = false;
-    fill_square(c, current(foreground), x0, y0, x0 + SIZE, y0 + SIZE);
+    fill_square(canvas, current(foreground), x0, y0, x0 + SIZE, y0 + SIZE);
 
     for n in COLOR_SWITCH {
         foreground = !foreground;
-        fill_square(c, current(foreground), x0 + SIZE - n, y0 + SIZE - n, x0 + n, y0 + n);
+        fill_square(canvas, current(foreground), x0 + SIZE - n, y0 + SIZE - n, x0 + n, y0 + n);
     }
 }
 
-fn fill_square(c: &mut Canvas, color: u32, x0: i32, y0: i32, x1: i32, y1: i32) {
+fn fill_square(canvas: &mut Canvas, color: u32, x0: i32, y0: i32, x1: i32, y1: i32) {
     for y in y0..y1 {
         for x in x0..x1 {
-            if let Some(pixel) = c.get_mut(x, y) {
+            if let Some(pixel) = canvas.get_mut(x, y) {
                 *pixel = color;
             }
         }
     }
 }
 
-fn clear(c: &mut Canvas) {
-    let width = c.width();
-    let height = c.height();
-    fill_square(c, color::BLACK, 0, 0, width, height);
+fn clear(canvas: &mut Canvas) {
+    let width = canvas.width();
+    let height = canvas.height();
+    fill_square(canvas, color::BLACK, 0, 0, width, height);
 }
 
 struct Canvas<'a> {

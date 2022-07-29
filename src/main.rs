@@ -6,6 +6,7 @@ mod num_cast;
 
 use num_cast::NumCast;
 use game::RawCanvas;
+use std::time::Instant;
 use anyhow::{bail, Context};
 use windows::{
     core::PCSTR,
@@ -88,9 +89,11 @@ fn main() -> anyhow::Result<()> {
         bail!("GetDC failed");
     }
 
+    let mut game_state = game::State::new();
     let mut input = game::Input::default();
     let mut bitmap = Bitmap::with_size(1280, 720).context("Bitmap::with_size failed")?;
     let mut resize_bitmap = true;
+    let mut time = Instant::now();
     'main: loop {
         let mut msg = MSG::default();
         while unsafe { PeekMessageA(&mut msg, HWND(0), 0, 0, PM_REMOVE) }.as_bool() {
@@ -131,7 +134,9 @@ fn main() -> anyhow::Result<()> {
             resize_bitmap = false;
         }
 
-        game::update(&mut bitmap, &input);
+        let elapsed = time.elapsed().as_secs_f64();
+        time = Instant::now();
+        game::update(&mut game_state, &mut bitmap, &input, elapsed);
 
         let result = unsafe {
             StretchDIBits(
