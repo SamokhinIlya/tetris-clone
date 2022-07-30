@@ -134,8 +134,9 @@ fn main() -> anyhow::Result<()> {
             resize_bitmap = false;
         }
 
-        let elapsed = time.elapsed().as_secs_f64();
-        time = Instant::now();
+        let now = Instant::now();
+        let elapsed = now.duration_since(time).as_secs_f64();
+        time = now;
         game::update(&mut game_state, &mut bitmap, &input, elapsed);
 
         let result = unsafe {

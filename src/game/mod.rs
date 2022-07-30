@@ -57,7 +57,6 @@ fn update_impl(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
 
     let mut tick = false;
     state.tick -= dt;
-    dbg!(state.tick);
     if state.tick < 0.0 {
         state.tick = TICK;
         tick = true;
