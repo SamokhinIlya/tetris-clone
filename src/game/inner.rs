@@ -1,8 +1,10 @@
-use crate::game::RawCanvas;
+use crate::game::{Input, RawCanvas};
 use crate::num_cast::NumCast;
 
-type Bucket = [[bool; 10]; 20];
-const SIZE: i32 = 30;
+type Bucket = [[bool; BUCKET_WIDTH]; BUCKET_HEIGHT];
+const BUCKET_WIDTH: usize = 10;
+const BUCKET_HEIGHT: usize = 20;
+const CELL_PX: i32 = 30;
 
 const TICK: f64 = 0.5;
 
@@ -14,7 +16,7 @@ pub struct State {
 
 impl State {
     pub fn new() -> Self {
-        let cells = [[false; 10]; 20];
+        let cells = [[false; BUCKET_WIDTH]; BUCKET_HEIGHT];
 
         Self {
             spawned: false,
@@ -24,7 +26,7 @@ impl State {
     }
 }
 
-pub fn update(state: &mut State, mut canvas: Canvas, input: &super::Input, dt: f64) {
+pub fn update(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
     clear(&mut canvas);
 
     let mut tick = false;
@@ -35,29 +37,44 @@ pub fn update(state: &mut State, mut canvas: Canvas, input: &super::Input, dt: f
     }
 
     if state.spawned {
-        if tick {
-            let mut falling_cells = Vec::new();
-            for (y, line) in state.cells.iter().enumerate().rev() {
-                for (x, cell) in line.iter().enumerate() {
-                    if *cell {
-                        falling_cells.push([x, y]);
+        match (input.mouse.left, input.mouse.right) {
+            (false, false) | (true, true) => (),
+            (left, right) => {
+                for y in 0..BUCKET_HEIGHT {
+                    if right {
+                        for x in 0..BUCKET_WIDTH {
+                            if state.cells[y][x] && x > 0 && !state.cells[y][x - 1] {
+                                state.cells[y][x] = false;
+                                state.cells[y][x - 1] = true;
+                            }
+                        }
+                    }
+                    if left {
+                        for x in (0..BUCKET_WIDTH).rev() {
+                            if state.cells[y][x] && x + 1 < BUCKET_WIDTH && !state.cells[y][x + 1] {
+                                state.cells[y][x] = false;
+                                state.cells[y][x + 1] = true;
+                            }
+                        }
                     }
                 }
-            }
-
-            for [x, y] in falling_cells {
-                if y < state.cells.len() - 1 && !state.cells[y + 1][x] {
-                    state.cells[y][x] = false;
-                    state.cells[y + 1][x] = true;
+            },
+        }
+        if tick {
+            for y in (0..BUCKET_HEIGHT).rev() {
+                for x in 0..BUCKET_WIDTH {
+                    if state.cells[y][x] && y + 1 < BUCKET_HEIGHT && !state.cells[y + 1][x] {
+                        state.cells[y][x] = false;
+                        state.cells[y + 1][x] = true;
+                    }
                 }
             }
         }
     } else {
-        let width = state.cells[0].len();
-        for i in 0..5 {
-            state.cells[i][i] = true;
-            state.cells[i][width - 1 - i] = true;
-        }
+        state.cells[0][0] = true;
+        state.cells[0][1] = true;
+        state.cells[1][0] = true;
+        state.cells[1][1] = true;
         state.spawned = true;
     }
     draw_bucket(&mut canvas, &state.cells);
@@ -67,15 +84,15 @@ pub fn update(state: &mut State, mut canvas: Canvas, input: &super::Input, dt: f
 }
 
 fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket) {
-    let bucket_width = bucket[0].len().num_cast::<i32>() * SIZE;
-    let bucket_height = bucket.len().num_cast::<i32>() * SIZE;
+    let bucket_width_px = BUCKET_WIDTH.num_cast::<i32>() * CELL_PX;
+    let bucket_height_px = BUCKET_HEIGHT.num_cast::<i32>() * CELL_PX;
 
-    let x0 = canvas.width() / 2 - bucket_width / 2;
-    let y0 = canvas.height() / 2 - bucket_height / 2;
+    let x0 = canvas.width() / 2 - bucket_width_px / 2;
+    let y0 = canvas.height() / 2 - bucket_height_px / 2;
 
-    for y in y0..(y0 + bucket_height) {
-        for x in x0..(x0 + bucket_width) {
-            if y == y0 || y == (y0 + bucket_height - 1) || x == x0 || x == (x0 + bucket_width - 1) {
+    for y in y0..(y0 + bucket_height_px) {
+        for x in x0..(x0 + bucket_width_px) {
+            if y == y0 || y == (y0 + bucket_height_px - 1) || x == x0 || x == (x0 + bucket_width_px - 1) {
                 if let Some(pixel) = canvas.get_mut(x, y) {
                     *pixel = color::WHITE;
                 }
@@ -86,14 +103,14 @@ fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket) {
     for (y, line) in bucket.iter().enumerate() {
         for (x, cell) in line.iter().enumerate() {
             if *cell {
-                draw_cell(canvas, x0 + x.num_cast::<i32>() * SIZE, y0 + y.num_cast::<i32>() * SIZE);
+                draw_cell(canvas, x0 + x.num_cast::<i32>() * CELL_PX, y0 + y.num_cast::<i32>() * CELL_PX);
             }
         }
     }
 }
 
 fn draw_cell(canvas: &mut Canvas, x0: i32, y0: i32) {
-    const COLOR_SWITCH: [i32; 2] = [SIZE - 2, SIZE - 8];
+    const COLOR_SWITCH: [i32; 2] = [CELL_PX - 2, CELL_PX - 8];
 
     fn current(foreground: bool) -> u32 {
         if foreground {
@@ -104,11 +121,11 @@ fn draw_cell(canvas: &mut Canvas, x0: i32, y0: i32) {
     }
 
     let mut foreground = false;
-    fill_square(canvas, current(foreground), x0, y0, x0 + SIZE, y0 + SIZE);
+    fill_square(canvas, current(foreground), x0, y0, x0 + CELL_PX, y0 + CELL_PX);
 
     for n in COLOR_SWITCH {
         foreground = !foreground;
-        fill_square(canvas, current(foreground), x0 + SIZE - n, y0 + SIZE - n, x0 + n, y0 + n);
+        fill_square(canvas, current(foreground), x0 + CELL_PX - n, y0 + CELL_PX - n, x0 + n, y0 + n);
     }
 }
 
