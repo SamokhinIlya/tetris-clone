@@ -23,7 +23,7 @@ pub trait RawCanvas: IndexMut<usize, Output=u32> {
     fn height(&self) -> usize;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Input {
     pub mouse: Mouse,
 }
@@ -32,6 +32,27 @@ pub struct Input {
 pub struct Mouse {
     pub x: i32,
     pub y: i32,
-    pub left: bool,
-    pub right: bool,
+    pub left: Button,
+    pub right: Button,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Button {
+    prev: bool,
+    curr: bool,
+}
+
+impl Button {
+    pub fn update(&mut self, curr: bool) {
+        self.prev = self.curr;
+        self.curr = curr;
+    }
+
+    pub fn is_pressed(self) -> bool {
+        self.curr
+    }
+
+    pub fn just_pressed(self) -> bool {
+        !self.prev && self.curr
+    }
 }

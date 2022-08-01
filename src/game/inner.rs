@@ -36,12 +36,20 @@ pub fn update(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
         tick = true;
     }
 
+    if input.mouse.left.is_pressed() {
+        draw_cell(&mut canvas, 0, 0);
+    }
+    if input.mouse.right.is_pressed() {
+        let x = canvas.width() - CELL_PX;
+        draw_cell(&mut canvas, x, 0);
+    }
+
     if state.spawned {
-        match (input.mouse.left, input.mouse.right) {
+        match (input.mouse.left.just_pressed(), input.mouse.right.just_pressed()) {
             (false, false) | (true, true) => (),
             (left, right) => {
                 for y in 0..BUCKET_HEIGHT {
-                    if right {
+                    if left {
                         for x in 0..BUCKET_WIDTH {
                             if state.cells[y][x] && x > 0 && !state.cells[y][x - 1] {
                                 state.cells[y][x] = false;
@@ -49,7 +57,7 @@ pub fn update(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
                             }
                         }
                     }
-                    if left {
+                    if right {
                         for x in (0..BUCKET_WIDTH).rev() {
                             if state.cells[y][x] && x + 1 < BUCKET_WIDTH && !state.cells[y][x + 1] {
                                 state.cells[y][x] = false;

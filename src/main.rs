@@ -13,36 +13,42 @@ use windows::{
     Win32::{
         Foundation::{HWND, WPARAM, LPARAM, LRESULT, RECT, GetLastError},
         System::LibraryLoader::GetModuleHandleA,
-        UI::WindowsAndMessaging::{
-            WNDCLASSA,
-            WINDOW_EX_STYLE,
-            RegisterClassA,
-            CreateWindowExA,
-            ShowWindow,
-            DefWindowProcA,
-            PeekMessageA,
-            TranslateMessage,
-            DispatchMessageA,
-            GetClientRect,
-            PostQuitMessage,
-            PostMessageA,
-            WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT,
-            CS_HREDRAW,
-            CS_VREDRAW,
-            PM_REMOVE,
-            WM_QUIT,
-            WM_MOUSEMOVE,
-            WM_EXITSIZEMOVE,
-            MK_LBUTTON,
-            MK_RBUTTON,
-            WM_DESTROY,
-            WM_SETCURSOR,
-            HMENU,
-            SHOW_WINDOW_CMD,
-            MSG,
-            SetCursor,
-            HCURSOR, SetWindowTextA,
+        UI::{
+            Input::KeyboardAndMouse::{
+                GetAsyncKeyState,
+                VIRTUAL_KEY,
+                VK_LBUTTON,
+                VK_RBUTTON,
+            },
+            WindowsAndMessaging::{
+                WNDCLASSA,
+                WINDOW_EX_STYLE,
+                RegisterClassA,
+                CreateWindowExA,
+                ShowWindow,
+                DefWindowProcA,
+                PeekMessageA,
+                TranslateMessage,
+                DispatchMessageA,
+                GetClientRect,
+                PostQuitMessage,
+                PostMessageA,
+                WS_OVERLAPPEDWINDOW,
+                CW_USEDEFAULT,
+                CS_HREDRAW,
+                CS_VREDRAW,
+                PM_REMOVE,
+                WM_QUIT,
+                WM_MOUSEMOVE,
+                WM_EXITSIZEMOVE,
+                WM_DESTROY,
+                WM_SETCURSOR,
+                HMENU,
+                SHOW_WINDOW_CMD,
+                MSG,
+                SetCursor,
+                HCURSOR, SetWindowTextA,
+            },
         },
         Graphics::Gdi::{GetDC, StretchDIBits, DIB_RGB_COLORS, SRCCOPY, BITMAPINFO, BITMAPINFOHEADER, BI_RGB},
     },
@@ -103,9 +109,6 @@ fn main() -> anyhow::Result<()> {
                     resize_bitmap = true;
                 },
                 WM_MOUSEMOVE => {
-                    input.mouse.left = msg.wParam.0 & MK_LBUTTON as usize != 0;
-                    input.mouse.right = msg.wParam.0 & MK_RBUTTON as usize != 0;
-
                     let [x, y, _, _] = unsafe { std::mem::transmute::<_, [u16; 4]>(msg.lParam) };
                     [input.mouse.y, input.mouse.x] = [y.into(), x.into()];
                 },
@@ -115,6 +118,16 @@ fn main() -> anyhow::Result<()> {
                 },
             }
         }
+        {
+            fn is_pressed(vk: VIRTUAL_KEY) -> bool {
+                let result = unsafe { GetAsyncKeyState(vk.0.into()) };
+                result != 0 && result < 0
+            }
+
+            input.mouse.left.update(is_pressed(VK_LBUTTON));
+            input.mouse.right.update(is_pressed(VK_RBUTTON));
+        }
+
 
         let title = std::ffi::CString::new(format!("cursor: {:?}", (input.mouse.x, input.mouse.y))).expect("input has nul byte");
         unsafe {
