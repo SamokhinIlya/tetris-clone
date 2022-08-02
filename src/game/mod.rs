@@ -26,6 +26,7 @@ pub trait RawCanvas: IndexMut<usize, Output=u32> {
 #[derive(Default, Debug)]
 pub struct Input {
     pub mouse: Mouse,
+    pub keyboard: Keyboard,
 }
 
 #[derive(Default, Debug)]
@@ -34,6 +35,13 @@ pub struct Mouse {
     pub y: i32,
     pub left: Button,
     pub right: Button,
+}
+
+#[derive(Default, Debug)]
+pub struct Keyboard {
+    pub left: Button,
+    pub right: Button,
+    pub down: Button,
 }
 
 #[derive(Default, Debug, Clone, Copy)]

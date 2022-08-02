@@ -19,6 +19,9 @@ use windows::{
                 VIRTUAL_KEY,
                 VK_LBUTTON,
                 VK_RBUTTON,
+                VK_LEFT,
+                VK_RIGHT,
+                VK_DOWN,
             },
             WindowsAndMessaging::{
                 WNDCLASSA,
@@ -118,16 +121,7 @@ fn main() -> anyhow::Result<()> {
                 },
             }
         }
-        {
-            fn is_pressed(vk: VIRTUAL_KEY) -> bool {
-                let result = unsafe { GetAsyncKeyState(vk.0.into()) };
-                result != 0 && result < 0
-            }
-
-            input.mouse.left.update(is_pressed(VK_LBUTTON));
-            input.mouse.right.update(is_pressed(VK_RBUTTON));
-        }
-
+        gather_input(&mut input);
 
         let title = std::ffi::CString::new(format!("cursor: {:?}", (input.mouse.x, input.mouse.y))).expect("input has nul byte");
         unsafe {
@@ -169,6 +163,20 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn gather_input(input: &mut game::Input) {
+    fn is_pressed(vk: VIRTUAL_KEY) -> bool {
+        let result = unsafe { GetAsyncKeyState(vk.0.into()) };
+        result != 0 && result < 0
+    }
+
+    input.mouse.left.update(is_pressed(VK_LBUTTON));
+    input.mouse.right.update(is_pressed(VK_RBUTTON));
+
+    input.keyboard.left.update(is_pressed(VK_LEFT));
+    input.keyboard.right.update(is_pressed(VK_RIGHT));
+    input.keyboard.down.update(is_pressed(VK_DOWN));
 }
 
 unsafe extern "system" fn win_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
