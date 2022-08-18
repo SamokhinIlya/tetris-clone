@@ -7,13 +7,13 @@ pub fn update(state: &mut State, raw_canvas: &mut dyn RawCanvas, input: &Input, 
 }
 
 pub struct State {
-    inner: inner::State,
+    inner: inner::Data,
 }
 
 impl State {
     pub fn new() -> Self {
         Self {
-            inner: inner::State::new(),
+            inner: inner::Data::new(),
         }
     }
 }

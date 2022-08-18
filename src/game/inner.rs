@@ -4,33 +4,44 @@ use crate::num_cast::NumCast;
 type Bucket = [[Cell; BUCKET_WIDTH]; BUCKET_HEIGHT];
 
 #[derive(PartialEq, Clone, Copy)]
-enum Cell { Empty, Falling, Frozen }
+enum Cell { Empty, Falling, Frozen, Disappearing }
 
 const BUCKET_WIDTH: usize = 10;
 const BUCKET_HEIGHT: usize = 20;
 const CELL_PX: i32 = 30;
 
 const TICK: f64 = 0.5;
+const CLEAR_ROW_FLASH_TICK: f64 = TICK / 2.0;
 
-pub struct State {
-    spawned: bool,
+pub struct Data {
+    state: State,
     cells: Bucket,
     gravity_tick: f64,
+    clear_row_flash_tick: f64,
 }
 
-impl State {
+#[derive(PartialEq, Debug)]
+enum State {
+    NotSpawned,
+    Spawned,
+    ClearRow { show: bool, blinks: i32 },
+    FallAfterClear,
+}
+
+impl Data {
     pub fn new() -> Self {
         let cells = [[Cell::Empty; BUCKET_WIDTH]; BUCKET_HEIGHT];
 
         Self {
-            spawned: false,
+            state: State::NotSpawned,
             cells,
             gravity_tick: TICK,
+            clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
         }
     }
 }
 
-pub fn update(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
+pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     clear(&mut canvas);
 
     let move_left = input.mouse.left.just_pressed() || input.keyboard.left.just_pressed();
@@ -38,63 +49,112 @@ pub fn update(state: &mut State, mut canvas: Canvas, input: &Input, dt: f64) {
     let move_down = input.keyboard.down.is_pressed();
 
     let mut tick = false;
-    state.gravity_tick -= dt;
-    if move_down && state.spawned || state.gravity_tick < 0.0 {
-        state.gravity_tick = TICK;
+    data.gravity_tick -= dt;
+    if (move_down && data.state == State::Spawned) || data.gravity_tick < 0.0 {
+        data.gravity_tick = TICK;
         tick = true;
     }
 
-    if state.spawned {
-        match (move_left, move_right) {
-            (false, false) | (true, true) => (),
-            (left, right) => {
-                for y in 0..BUCKET_HEIGHT {
-                    if left {
-                        for x in 0..BUCKET_WIDTH {
-                            if state.cells[y][x] == Cell::Falling && x > 0 && state.cells[y][x - 1] == Cell::Empty {
-                                state.cells[y].swap(x, x - 1);
+    let mut show_disappearing = true;
+    match data.state {
+        State::NotSpawned => {
+            if tick {
+                data.cells[0][0] = Cell::Falling;
+                data.state = State::Spawned;
+            }
+        },
+        State::Spawned => {
+            match (move_left, move_right) {
+                (false, false) | (true, true) => (),
+                (left, right) => {
+                    for y in 0..BUCKET_HEIGHT {
+                        if left {
+                            for x in 0..BUCKET_WIDTH {
+                                if data.cells[y][x] == Cell::Falling && x > 0 && data.cells[y][x - 1] == Cell::Empty {
+                                    data.cells[y].swap(x, x - 1);
+                                }
+                            }
+                        }
+                        if right {
+                            for x in (0..BUCKET_WIDTH).rev() {
+                                if data.cells[y][x] == Cell::Falling && x + 1 < BUCKET_WIDTH && data.cells[y][x + 1] == Cell::Empty {
+                                    data.cells[y].swap(x, x + 1);
+                                }
                             }
                         }
                     }
-                    if right {
-                        for x in (0..BUCKET_WIDTH).rev() {
-                            if state.cells[y][x] == Cell::Falling && x + 1 < BUCKET_WIDTH && state.cells[y][x + 1] == Cell::Empty {
-                                state.cells[y].swap(x, x + 1);
-                            }
+                },
+            }
+            if tick {
+                apply_gravity(data);
+
+                let mut disappearing = false;
+                for y in (0..BUCKET_HEIGHT).rev() {
+                    if (0..BUCKET_WIDTH).all(|x| data.cells[y][x] == Cell::Frozen) {
+                        disappearing = true;
+                        for x in 0..BUCKET_WIDTH {
+                            data.cells[y][x] = Cell::Disappearing;
                         }
                     }
                 }
-            },
-        }
-        if tick {
-            for y in (0..BUCKET_HEIGHT).rev() {
-                for x in 0..BUCKET_WIDTH {
-                    if state.cells[y][x] == Cell::Falling {
-                        if y + 1 < BUCKET_HEIGHT && state.cells[y + 1][x] == Cell::Empty {
-                            state.cells[y][x] = Cell::Empty;
-                            state.cells[y + 1][x] = Cell::Falling;
-                        } else {
-                            state.cells[y][x] = Cell::Frozen;
-                            state.spawned = false;
-                        }
-                    }
+
+                if disappearing {
+                    data.state = State::ClearRow { show: false, blinks: 4 };
                 }
             }
-        }
-    } else {
-        #[allow(clippy::collapsible_if)]
-        if tick {
-            state.cells[0][0] = Cell::Falling;
-            state.spawned = true;
-        }
+        },
+        State::ClearRow { show, blinks } => {
+            if blinks > 0 {
+                show_disappearing = show;
+
+                data.clear_row_flash_tick -= dt;
+                if data.clear_row_flash_tick < 0.0 {
+                    data.clear_row_flash_tick = CLEAR_ROW_FLASH_TICK;
+                    data.state = State::ClearRow { show: !show, blinks: blinks - 1 };
+                }
+            } else {
+                show_disappearing = false;
+                for row in &mut data.cells {
+                    for cell in row {
+                        if *cell == Cell::Disappearing {
+                            *cell = Cell::Empty;
+                        } else if *cell == Cell::Frozen {
+                            *cell = Cell::Falling;
+                        }
+                    }
+                }
+                data.state = State::FallAfterClear;
+            }  
+        },
+        State::FallAfterClear => {
+            if tick {
+                apply_gravity(data);
+            }
+        },
     }
-    draw_bucket(&mut canvas, &state.cells);
+    draw_bucket(&mut canvas, &data.cells, show_disappearing);
 
     let mouse = &input.mouse;
     draw_cell(&mut canvas, mouse.x, mouse.y);
 }
 
-fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket) {
+fn apply_gravity(data: &mut Data) {
+    for y in (0..BUCKET_HEIGHT).rev() {
+        for x in 0..BUCKET_WIDTH {
+            if data.cells[y][x] == Cell::Falling {
+                if y + 1 < BUCKET_HEIGHT && (data.cells[y + 1][x] == Cell::Empty) {
+                    data.cells[y][x] = Cell::Empty;
+                    data.cells[y + 1][x] = Cell::Falling;
+                } else {
+                    data.cells[y][x] = Cell::Frozen;
+                    data.state = State::NotSpawned;
+                }
+            }
+        }
+    }
+}
+
+fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket, show_disappearing: bool) {
     let bucket_width_px = BUCKET_WIDTH.num_cast::<i32>() * CELL_PX;
     let bucket_height_px = BUCKET_HEIGHT.num_cast::<i32>() * CELL_PX;
 
@@ -113,7 +173,7 @@ fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket) {
 
     for (y, line) in bucket.iter().enumerate() {
         for (x, cell) in line.iter().enumerate() {
-            if *cell != Cell::Empty {
+            if *cell == Cell::Falling || *cell == Cell::Frozen || (*cell == Cell::Disappearing && show_disappearing) {
                 draw_cell(canvas, x0 + x.num_cast::<i32>() * CELL_PX, y0 + y.num_cast::<i32>() * CELL_PX);
             }
         }
