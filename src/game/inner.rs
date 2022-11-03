@@ -65,10 +65,29 @@ impl From<&Input> for Option<Move> {
     }
 }
 
+#[derive(PartialEq)]
+enum Turn {
+    Left,
+    Right,
+}
+
+impl From<&Input> for Option<Turn> {
+    fn from(input: &Input) -> Self {
+        let left = input.mouse.left.just_pressed();
+        let right = input.mouse.right.just_pressed();
+        match (left, right) {
+            (true, true) | (false, false) => None,
+            (true, false) => Some(Turn::Left),
+            (false, true) => Some(Turn::Right),
+        }
+    }
+}
+
 pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     clear(&mut canvas);
 
-    let mov = Option::<Move>::from(input); 
+    let mov = Option::<Move>::from(input);
+    let turn = Option::<Turn>::from(input);
 
     let mut tick = false;
     data.gravity_tick -= dt;
