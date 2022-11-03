@@ -100,31 +100,57 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     match data.state {
         State::NotSpawned => {
             if tick {
-                data.cells[0][0] = Cell::Falling;
+                let x = 5;
+                data.cells[0][0 + x] = Cell::Falling;
+                data.cells[0][1 + x] = Cell::Falling;
+                data.cells[1][0 + x] = Cell::Falling;
+                data.cells[1][1 + x] = Cell::Falling;
                 data.state = State::Spawned;
             }
         },
         State::Spawned => {
             let mut gravity_applied = false;
-            match mov {
-                Some(Move::Left) => {
+            enum Dir { Left, Right }
+            fn move_sideways(cells: &mut Bucket, dir: Dir) {
+                let d: fn(usize) -> usize;
+                let is_boundary: fn(usize) -> bool;
+                match dir {
+                    Dir::Left  => {
+                        d = |x| x - 1;
+                        is_boundary = |x| x == 0;
+                    },
+                    Dir::Right => {
+                        d = |x| x + 1;
+                        is_boundary = |x| x == BUCKET_WIDTH;
+                    },
+                };
+
+                let mut prev = Vec::new();
+                let can = 'can: {
                     for y in 0..BUCKET_HEIGHT {
                         for x in 0..BUCKET_WIDTH {
-                            if data.cells[y][x] == Cell::Falling && x > 0 && data.cells[y][x - 1] == Cell::Empty {
-                                data.cells[y].swap(x, x - 1);
+                            if cells[y][x] == Cell::Falling {
+                                if is_boundary(x) || cells[y][d(x)] == Cell::Frozen {
+                                    break 'can false
+                                }
+                                prev.push([y, x]);
                             }
                         }
                     }
-                },
-                Some(Move::Right) => {
-                    for y in 0..BUCKET_HEIGHT {
-                        for x in (0..BUCKET_WIDTH).rev() {
-                            if data.cells[y][x] == Cell::Falling && x + 1 < BUCKET_WIDTH && data.cells[y][x + 1] == Cell::Empty {
-                                data.cells[y].swap(x, x + 1);
-                            }
-                        }
+                    true
+                };
+                if can {
+                    for &[y, x] in &prev {
+                        cells[y][x] = Cell::Empty;
                     }
-                },
+                    for &[y, x] in &prev {
+                        cells[y][d(x)] = Cell::Falling;
+                    }
+                }
+            }
+            match mov {
+                Some(Move::Left) => move_sideways(&mut data.cells, Dir::Left),
+                Some(Move::Right) => move_sideways(&mut data.cells, Dir::Right),
                 Some(Move::Down) => {
                     apply_gravity(data);
                     gravity_applied = true;
