@@ -41,16 +41,38 @@ impl Data {
     }
 }
 
+#[derive(PartialEq)]
+enum Move {
+    Left,
+    Right,
+    Down,
+}
+
+impl From<&Input> for Option<Move> {
+    fn from(input: &Input) -> Self {
+        let move_down = input.keyboard.down.is_pressed();
+        if move_down {
+            Some(Move::Down)
+        } else {
+            let move_left = input.keyboard.left.just_pressed();
+            let move_right = input.keyboard.right.just_pressed();
+            match (move_left, move_right) {
+                (true, true) | (false, false) => None,
+                (true, false) => Some(Move::Left),
+                (false, true) => Some(Move::Right),
+            }
+        }
+    }
+}
+
 pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     clear(&mut canvas);
 
-    let move_left = input.mouse.left.just_pressed() || input.keyboard.left.just_pressed();
-    let move_right = input.mouse.right.just_pressed() || input.keyboard.right.just_pressed();
-    let move_down = input.keyboard.down.is_pressed();
+    let mov = Option::<Move>::from(input); 
 
     let mut tick = false;
     data.gravity_tick -= dt;
-    if (move_down && data.state == State::Spawned) || data.gravity_tick < 0.0 {
+    if data.gravity_tick < 0.0 {
         data.gravity_tick = TICK;
         tick = true;
     }
@@ -64,30 +86,39 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
             }
         },
         State::Spawned => {
-            match (move_left, move_right) {
-                (false, false) | (true, true) => (),
-                (left, right) => {
+            let mut gravity_applied = false;
+            match mov {
+                Some(Move::Left) => {
                     for y in 0..BUCKET_HEIGHT {
-                        if left {
-                            for x in 0..BUCKET_WIDTH {
-                                if data.cells[y][x] == Cell::Falling && x > 0 && data.cells[y][x - 1] == Cell::Empty {
-                                    data.cells[y].swap(x, x - 1);
-                                }
-                            }
-                        }
-                        if right {
-                            for x in (0..BUCKET_WIDTH).rev() {
-                                if data.cells[y][x] == Cell::Falling && x + 1 < BUCKET_WIDTH && data.cells[y][x + 1] == Cell::Empty {
-                                    data.cells[y].swap(x, x + 1);
-                                }
+                        for x in 0..BUCKET_WIDTH {
+                            if data.cells[y][x] == Cell::Falling && x > 0 && data.cells[y][x - 1] == Cell::Empty {
+                                data.cells[y].swap(x, x - 1);
                             }
                         }
                     }
                 },
+                Some(Move::Right) => {
+                    for y in 0..BUCKET_HEIGHT {
+                        for x in (0..BUCKET_WIDTH).rev() {
+                            if data.cells[y][x] == Cell::Falling && x + 1 < BUCKET_WIDTH && data.cells[y][x + 1] == Cell::Empty {
+                                data.cells[y].swap(x, x + 1);
+                            }
+                        }
+                    }
+                },
+                Some(Move::Down) => {
+                    apply_gravity(data);
+                    gravity_applied = true;
+                },
+                None => (),
             }
-            if tick {
-                apply_gravity(data);
 
+            if !gravity_applied && tick {
+                apply_gravity(data);
+                gravity_applied = true;
+            }
+
+            if gravity_applied {
                 let mut disappearing = false;
                 for y in (0..BUCKET_HEIGHT).rev() {
                     if (0..BUCKET_WIDTH).all(|x| data.cells[y][x] == Cell::Frozen) {
