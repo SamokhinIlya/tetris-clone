@@ -107,76 +107,35 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
                 data.cells[1][1 + x] = Cell::Falling;
                 data.state = State::Spawned;
             }
-        },
+        }
         State::Spawned => {
-            let mut gravity_applied = false;
-            enum Dir { Left, Right }
-            fn move_sideways(cells: &mut Bucket, dir: Dir) {
-                let d: fn(usize) -> usize;
-                let is_boundary: fn(usize) -> bool;
-                match dir {
-                    Dir::Left  => {
-                        d = |x| x - 1;
-                        is_boundary = |x| x == 0;
-                    },
-                    Dir::Right => {
-                        d = |x| x + 1;
-                        is_boundary = |x| x == BUCKET_WIDTH;
-                    },
-                };
-
-                let mut prev = Vec::new();
-                let can = 'can: {
-                    for y in 0..BUCKET_HEIGHT {
-                        for x in 0..BUCKET_WIDTH {
-                            if cells[y][x] == Cell::Falling {
-                                if is_boundary(x) || cells[y][d(x)] == Cell::Frozen {
-                                    break 'can false
-                                }
-                                prev.push([y, x]);
-                            }
-                        }
-                    }
-                    true
-                };
-                if can {
-                    for &[y, x] in &prev {
-                        cells[y][x] = Cell::Empty;
-                    }
-                    for &[y, x] in &prev {
-                        cells[y][d(x)] = Cell::Falling;
-                    }
-                }
-            }
-            match mov {
-                Some(Move::Left) => move_sideways(&mut data.cells, Dir::Left),
-                Some(Move::Right) => move_sideways(&mut data.cells, Dir::Right),
-                Some(Move::Down) => {
-                    apply_gravity(data);
-                    gravity_applied = true;
-                },
-                None => (),
+            if let Some(m) = mov {
+                try_move_piece(&mut data.cells, m);
             }
 
-            if !gravity_applied && tick {
-                apply_gravity(data);
-                gravity_applied = true;
-            }
-
-            if gravity_applied {
-                let mut disappearing = false;
-                for y in (0..BUCKET_HEIGHT).rev() {
-                    if (0..BUCKET_WIDTH).all(|x| data.cells[y][x] == Cell::Frozen) {
-                        disappearing = true;
-                        for x in 0..BUCKET_WIDTH {
-                            data.cells[y][x] = Cell::Disappearing;
+            if tick && !try_move_piece(&mut data.cells, Move::Down) {
+                for y in 0..BUCKET_HEIGHT {
+                    for x in 0..BUCKET_WIDTH {
+                        if data.cells[y][x] == Cell::Falling {
+                            data.cells[y][x] = Cell::Frozen;
                         }
                     }
                 }
+                data.state = State::NotSpawned;
+            }
 
-                if disappearing {
-                    data.state = State::ClearRow { show: false, blinks: 4 };
+            let mut is_full_row = false;
+            for y in (0..BUCKET_HEIGHT).rev() {
+                if (0..BUCKET_WIDTH).all(|x| data.cells[y][x] == Cell::Frozen) {
+                    is_full_row = true;
+                    for x in 0..BUCKET_WIDTH {
+                        data.cells[y][x] = Cell::Disappearing;
+                    }
                 }
+            }
+
+            if is_full_row {
+                data.state = State::ClearRow { show: false, blinks: 4 };
             }
         },
         State::ClearRow { show, blinks } => {
@@ -203,8 +162,8 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
             }  
         },
         State::FallAfterClear => {
-            if tick {
-                apply_gravity(data);
+            if tick && !try_move_piece(&mut data.cells, Move::Down) {
+                data.state = State::NotSpawned;
             }
         },
     }
@@ -214,20 +173,51 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     draw_cell(&mut canvas, mouse.x, mouse.y);
 }
 
-fn apply_gravity(data: &mut Data) {
-    for y in (0..BUCKET_HEIGHT).rev() {
-        for x in 0..BUCKET_WIDTH {
-            if data.cells[y][x] == Cell::Falling {
-                if y + 1 < BUCKET_HEIGHT && (data.cells[y + 1][x] == Cell::Empty) {
-                    data.cells[y][x] = Cell::Empty;
-                    data.cells[y + 1][x] = Cell::Falling;
-                } else {
-                    data.cells[y][x] = Cell::Frozen;
-                    data.state = State::NotSpawned;
+fn try_move_piece(cells: &mut Bucket, mov: Move) -> bool {
+    let dx: fn(usize) -> usize;
+    let dy: fn(usize) -> usize;
+    let is_boundary: fn([usize; 2]) -> bool;
+    match mov {
+        Move::Left  => {
+            dx = |x| x - 1;
+            dy = |y| y;
+            is_boundary = |[_y, x]| x == 0;
+        }
+        Move::Right => {
+            dx = |x| x + 1;
+            dy = |y| y;
+            is_boundary = |[_y, x]| x == BUCKET_WIDTH - 1;
+        }
+        Move::Down => {
+            dx = |x| x;
+            dy = |y| y + 1;
+            is_boundary = |[y, _x]| y == BUCKET_HEIGHT - 1;
+        }
+    };
+
+    let mut prev = Vec::new();
+    let can = 'can: {
+        for y in 0..BUCKET_HEIGHT {
+            for x in 0..BUCKET_WIDTH {
+                if cells[y][x] == Cell::Falling {
+                    if is_boundary([y, x]) || cells[dy(y)][dx(x)] == Cell::Frozen {
+                        break 'can false
+                    }
+                    prev.push([y, x]);
                 }
             }
         }
+        !prev.is_empty()
+    };
+    if can {
+        for &[y, x] in &prev {
+            cells[y][x] = Cell::Empty;
+        }
+        for &[y, x] in &prev {
+            cells[dy(y)][dx(x)] = Cell::Falling;
+        }
     }
+    can
 }
 
 fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket, show_disappearing: bool) {
