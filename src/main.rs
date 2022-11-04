@@ -1,4 +1,3 @@
-#![warn(clippy::pedantic)]
 #![allow(clippy::semicolon_if_nothing_returned)]
 
 mod game;
