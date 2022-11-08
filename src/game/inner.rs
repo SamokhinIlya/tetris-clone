@@ -18,7 +18,7 @@ pub struct Data {
     cells: Bucket,
     gravity_tick: f64,
     clear_row_flash_tick: f64,
-    n_piece: usize,
+    piece: Piece,
 }
 
 #[derive(PartialEq, Debug)]
@@ -54,7 +54,7 @@ impl Data {
             cells,
             gravity_tick: TICK,
             clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
-            n_piece: 1,
+            piece: Piece::Stick,
         }
     }
 }
@@ -119,7 +119,8 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     match data.state {
         State::NotSpawned => {
             if tick {
-                let piece = match data.n_piece % 7 {
+                let n_piece = (data.piece as usize).wrapping_add(1) % 7;
+                data.piece = match n_piece {
                     0 => Piece::Square,
                     1 => Piece::Stick,
                     2 => Piece::L,
@@ -129,9 +130,7 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
                     6 => Piece::ReverseS,
                     _ => unreachable!(),
                 };
-                spawn(&mut data.cells, piece);
-                data.n_piece = data.n_piece.wrapping_add(1);
-
+                spawn(&mut data.cells, data.piece);
                 data.state = State::Spawned;
             }
         }
@@ -219,6 +218,7 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     draw_cell(&mut canvas, mouse.x, mouse.y);
 }
 
+#[derive(Clone, Copy)]
 enum Piece {
     Square,
     Stick,
