@@ -18,6 +18,7 @@ pub struct Data {
     cells: Bucket,
     gravity_tick: f64,
     clear_row_flash_tick: f64,
+    n_piece: usize,
 }
 
 #[derive(PartialEq, Debug)]
@@ -37,6 +38,7 @@ impl Data {
             cells,
             gravity_tick: TICK,
             clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
+            n_piece: 4,
         }
     }
 }
@@ -97,14 +99,23 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     }
 
     let mut show_disappearing = true;
+
     match data.state {
         State::NotSpawned => {
             if tick {
-                let x = 5;
-                data.cells[0][0 + x] = Cell::Falling;
-                data.cells[0][1 + x] = Cell::Falling;
-                data.cells[1][0 + x] = Cell::Falling;
-                data.cells[1][1 + x] = Cell::Falling;
+                let piece = match data.n_piece % 7 {
+                    0 => Piece::Square,
+                    1 => Piece::Stick,
+                    2 => Piece::L,
+                    3 => Piece::ReverseL,
+                    4 => Piece::T,
+                    5 => Piece::S,
+                    6 => Piece::ReverseS,
+                    _ => unreachable!(),
+                };
+                spawn(&mut data.cells, piece);
+                data.n_piece = data.n_piece.wrapping_add(1);
+
                 data.state = State::Spawned;
             }
         }
@@ -171,6 +182,65 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
 
     let mouse = &input.mouse;
     draw_cell(&mut canvas, mouse.x, mouse.y);
+}
+
+enum Piece {
+    Square,
+    Stick,
+    L,
+    ReverseL,
+    T,
+    S,
+    ReverseS,
+}
+
+fn spawn(cells: &mut Bucket, piece: Piece) {
+    let x = 5;
+    match piece {
+        Piece::Square => {
+            cells[0][0 + x] = Cell::Falling;
+            cells[0][1 + x] = Cell::Falling;
+            cells[1][0 + x] = Cell::Falling;
+            cells[1][1 + x] = Cell::Falling;
+        }
+        Piece::Stick => {
+            cells[0][x] = Cell::Falling;
+            cells[1][x] = Cell::Falling;
+            cells[2][x] = Cell::Falling;
+            cells[3][x] = Cell::Falling;
+        }
+        Piece::L => {
+            cells[0][x] = Cell::Falling;
+            cells[1][x] = Cell::Falling;
+            cells[2][x] = Cell::Falling;
+            cells[2][x + 1] = Cell::Falling;
+        }
+        Piece::ReverseL => {
+            cells[0][x] = Cell::Falling;
+            cells[1][x] = Cell::Falling;
+            cells[2][x] = Cell::Falling;
+            cells[2][x - 1] = Cell::Falling;
+        }
+        Piece::T => {
+            cells[0][x] = Cell::Falling;
+            cells[1][x] = Cell::Falling;
+            cells[1][x + 1] = Cell::Falling;
+            cells[1][x - 1] = Cell::Falling;
+        }
+        Piece::S => {
+            cells[1][x] = Cell::Falling;
+            cells[1][x + 1] = Cell::Falling;
+            cells[0][x + 1] = Cell::Falling;
+            cells[0][x + 2] = Cell::Falling;
+        }
+        Piece::ReverseS => {
+            cells[0][x] = Cell::Falling;
+            cells[0][x + 1] = Cell::Falling;
+            cells[1][x + 1] = Cell::Falling;
+            cells[1][x + 2] = Cell::Falling;
+        }
+        _ => ()
+    }
 }
 
 fn try_move_piece(cells: &mut Bucket, mov: Move) -> bool {
