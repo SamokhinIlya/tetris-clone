@@ -25,20 +25,36 @@ pub struct Data {
 enum State {
     NotSpawned,
     Spawned,
-    ClearRow { show: bool, blinks: i32 },
+    ClearRows {
+        range: [usize; 2],
+        show: bool,
+        blinks: i32,
+    },
     FallAfterClear,
 }
 
 impl Data {
     pub fn new() -> Self {
-        let cells = [[Cell::Empty; BUCKET_WIDTH]; BUCKET_HEIGHT];
+        let mut cells = [[Cell::Empty; BUCKET_WIDTH]; BUCKET_HEIGHT];
+        for y in (BUCKET_HEIGHT - 4)..(BUCKET_HEIGHT) {
+            for x in 0..BUCKET_WIDTH {
+                cells[y][x] = Cell::Frozen;
+            }
+        }
+        cells[BUCKET_HEIGHT - 1][5] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 2][5] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 3][5] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 4][5] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 4][3] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 4][4] = Cell::Empty;
+        cells[BUCKET_HEIGHT - 4][6] = Cell::Empty;
 
         Self {
             state: State::NotSpawned,
             cells,
             gravity_tick: TICK,
             clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
-            n_piece: 4,
+            n_piece: 1,
         }
     }
 }
@@ -135,38 +151,50 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
                 data.state = State::NotSpawned;
             }
 
-            let mut is_full_row = false;
+            let mut full_rows_range = Option::<[usize; 2]>::None;
             for y in (0..BUCKET_HEIGHT).rev() {
                 if (0..BUCKET_WIDTH).all(|x| data.cells[y][x] == Cell::Frozen) {
-                    is_full_row = true;
+                    if let Some(range) = full_rows_range {
+                        full_rows_range = Some([y, range[1]]);
+                    } else {
+                        full_rows_range = Some([y, y]);
+                    }
+
                     for x in 0..BUCKET_WIDTH {
                         data.cells[y][x] = Cell::Disappearing;
                     }
                 }
             }
 
-            if is_full_row {
-                data.state = State::ClearRow { show: false, blinks: 4 };
+            if let Some(range) = full_rows_range {
+                data.state = State::ClearRows { range, show: false, blinks: 4 };
             }
         },
-        State::ClearRow { show, blinks } => {
+        State::ClearRows { range, show, blinks } => {
             if blinks > 0 {
                 show_disappearing = show;
 
                 data.clear_row_flash_tick -= dt;
                 if data.clear_row_flash_tick < 0.0 {
                     data.clear_row_flash_tick = CLEAR_ROW_FLASH_TICK;
-                    data.state = State::ClearRow { show: !show, blinks: blinks - 1 };
+                    data.state = State::ClearRows { range, show: !show, blinks: blinks - 1 };
                 }
             } else {
                 show_disappearing = false;
-                for row in &mut data.cells {
-                    for cell in row {
-                        if *cell == Cell::Disappearing {
-                            *cell = Cell::Empty;
-                        } else if *cell == Cell::Frozen {
+                for y in 0..range[0] {
+                    for x in 0..BUCKET_WIDTH {
+                        let cell = &mut data.cells[y][x];
+                        if *cell == Cell::Frozen {
                             *cell = Cell::Falling;
                         }
+                    }
+                }
+                for y in range[0]..=range[1] {
+                    for x in 0..BUCKET_WIDTH {
+                        let cell = &mut data.cells[y][x];
+                        if *cell == Cell::Disappearing {
+                            *cell = Cell::Empty;
+                        }                    
                     }
                 }
                 data.state = State::FallAfterClear;
@@ -174,6 +202,13 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
         },
         State::FallAfterClear => {
             if tick && !try_move_piece(&mut data.cells, Move::Down) {
+                for row in &mut data.cells {
+                    for cell in row {
+                        if *cell == Cell::Falling {
+                            *cell = Cell::Frozen;
+                        }
+                    }
+                }
                 data.state = State::NotSpawned;
             }
         },
