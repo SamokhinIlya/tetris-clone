@@ -3,8 +3,13 @@ use crate::num_cast::NumCast;
 
 type Bucket = [[Cell; BUCKET_WIDTH]; BUCKET_HEIGHT];
 
-#[derive(PartialEq, Clone, Copy)]
-enum Cell { Empty, Falling, Frozen, Disappearing }
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum Cell {
+    Empty,
+    Falling,
+    Frozen,
+    Disappearing,
+}
 
 const BUCKET_WIDTH: usize = 10;
 const BUCKET_HEIGHT: usize = 20;
@@ -54,7 +59,7 @@ impl Data {
             cells,
             gravity_tick: TICK,
             clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
-            piece: Piece::Stick,
+            piece: Piece::Square,
         }
     }
 }
@@ -83,7 +88,7 @@ impl From<&Input> for Option<Move> {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Turn {
     Left,
     Right,
@@ -135,6 +140,10 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
             }
         }
         State::Spawned => {
+            if let Some(t) = turn {
+                try_turn_piece(&mut data.cells, t, data.piece);
+            }
+
             if let Some(m) = mov {
                 try_move_piece(&mut data.cells, m);
             }
@@ -218,7 +227,7 @@ pub fn update(data: &mut Data, mut canvas: Canvas, input: &Input, dt: f64) {
     draw_cell(&mut canvas, mouse.x, mouse.y);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Piece {
     Square,
     Stick,
@@ -227,6 +236,81 @@ enum Piece {
     T,
     S,
     ReverseS,
+}
+
+const fn bool_to_cell(b: bool) -> Cell {
+    if b {
+        Cell::Falling
+    } else {
+        Cell::Empty
+    }
+}
+
+const fn blueprint_row(binary: u8) -> [Cell; 4] {
+    [
+        bool_to_cell(binary & 0b_0001 != 0),
+        bool_to_cell(binary & 0b_0010 != 0),
+        bool_to_cell(binary & 0b_0100 != 0),
+        bool_to_cell(binary & 0b_1000 != 0),
+    ]
+}
+
+const fn blueprint(bs: [u8; 4]) -> [[Cell; 4]; 4] {
+    [
+        blueprint_row(bs[0]),
+        blueprint_row(bs[1]),
+        blueprint_row(bs[2]),
+        blueprint_row(bs[3]),
+    ]
+}
+
+impl Piece {
+    fn get_blueprint(self) -> [[Cell; 4]; 4] {
+        match self {
+            Piece::Square => blueprint([
+                0b_1100,
+                0b_1100,
+                0b_0000,
+                0b_0000,
+            ]),
+            Piece::Stick => blueprint([
+                0b_1111,
+                0b_0000,
+                0b_0000,
+                0b_0000,
+            ]),
+            Piece::L => blueprint([
+                0b_1000,
+                0b_1000,
+                0b_1100,
+                0b_0000,
+            ]),
+            Piece::ReverseL => blueprint([
+                0b_0100,
+                0b_0100,
+                0b_1100,
+                0b_0000,
+            ]),
+            Piece::T => blueprint([
+                0b_0100,
+                0b_1110,
+                0b_0000,
+                0b_0000,
+            ]),
+            Piece::S => blueprint([
+                0b_0110,
+                0b_1100,
+                0b_0000,
+                0b_0000,
+            ]),
+            Piece::ReverseS => blueprint([
+                0b_1100,
+                0b_0110,
+                0b_0000,
+                0b_0000,
+            ]),
+        }
+    }
 }
 
 fn spawn(cells: &mut Bucket, piece: Piece) {
@@ -239,10 +323,10 @@ fn spawn(cells: &mut Bucket, piece: Piece) {
             cells[1][1 + x] = Cell::Falling;
         }
         Piece::Stick => {
+            cells[0][x - 1] = Cell::Falling;
             cells[0][x] = Cell::Falling;
-            cells[1][x] = Cell::Falling;
-            cells[2][x] = Cell::Falling;
-            cells[3][x] = Cell::Falling;
+            cells[0][x + 1] = Cell::Falling;
+            cells[0][x + 2] = Cell::Falling;
         }
         Piece::L => {
             cells[0][x] = Cell::Falling;
@@ -323,6 +407,65 @@ fn try_move_piece(cells: &mut Bucket, mov: Move) -> bool {
         }
     }
     can
+}
+
+fn try_turn_piece(cells: &mut Bucket, turn: Turn, piece: Piece) -> bool {
+    let y0 = 'y0: {
+        for y in 0..BUCKET_HEIGHT {
+            for x in 0..BUCKET_WIDTH {
+                if cells[y][x] == Cell::Falling {
+                    break 'y0 y;
+                }
+            }
+        }
+        return false;
+    };
+    let x0 = 'x0: {
+        for x in 0..BUCKET_WIDTH {
+            for y in 0..BUCKET_HEIGHT {
+                if cells[y][x] == Cell::Falling {
+                    break 'x0 x;
+                }
+            }
+        }
+        return false;
+    };
+
+    match piece {
+        Piece::Square => true,
+        Piece::Stick => {
+            assert!(cells[y0][x0] == Cell::Falling);
+            if cells[y0][x0 + 1] == Cell::Falling {
+                let x = x0 + 1;
+                if y0 > 0 && y0 < BUCKET_WIDTH - 2 {
+                    for y in (y0 - 1)..(y0 + 3) {
+                        if cells[y][x] != Cell::Empty && cells[y][x] != Cell::Falling {
+                            return false;
+                        }
+                    }
+
+                    for x in x0..(x0 + 4) {
+                        cells[y0][x] = Cell::Empty;
+                    }
+                    for y in (y0 - 1)..(y0 + 3) {
+                        cells[y][x] = Cell::Falling;
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else if cells[y0 + 1][x0] == Cell::Falling {
+                false
+            } else {
+                unreachable!();
+            }
+        },
+        Piece::L => todo!(),
+        Piece::ReverseL => todo!(),
+        Piece::T => todo!(),
+        Piece::S => todo!(),
+        Piece::ReverseS => todo!(),
+    }
 }
 
 fn draw_bucket(canvas: &mut Canvas, bucket: &Bucket, show_disappearing: bool) {
