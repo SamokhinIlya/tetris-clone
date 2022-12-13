@@ -2,22 +2,21 @@ mod bucket;
 mod draw;
 mod grid;
 mod input;
+mod timer;
 
 use bucket::{Bucket, Cell};
 use draw::Canvas;
 use grid::Grid;
 use input::{Move, Turn};
+use timer::Timer;
 
 use super::{Input, RawCanvas};
-
-const TICK: f64 = 0.5;
-const CLEAR_ROW_FLASH_TICK: f64 = TICK / 2.0;
 
 pub struct Data {
     state: State,
     cells: Bucket,
-    gravity_tick: f64,
-    clear_row_flash_tick: f64,
+    gravity_timer: Timer,
+    clear_row_flash_timer: Timer,
     piece: Piece,
 }
 
@@ -27,10 +26,13 @@ enum State {
     Spawned {
         pos: [usize; 2],
     },
-    ClearRows {
+    BlinkDisappearingRows {
         range: [usize; 2],
         show: bool,
         blinks: i32,
+    },
+    ClearDisappearingRows {
+        range: [usize; 2],
     },
     FallAfterClear,
 }
@@ -52,11 +54,14 @@ impl Data {
         cells[[h - 4, 4]] = Cell::Empty;
         cells[[h - 4, 6]] = Cell::Empty;
 
+        const TICK: f64 = 0.5;
+        const CLEAR_ROW_FLASH_TICK: f64 = TICK / 2.0;
+
         Self {
             state: State::NotSpawned,
             cells,
-            gravity_tick: TICK,
-            clear_row_flash_tick: CLEAR_ROW_FLASH_TICK,
+            gravity_timer: Timer::new(TICK),
+            clear_row_flash_timer: Timer::new(CLEAR_ROW_FLASH_TICK),
             piece: Piece { ty: PieceType::Square, rotations: 0 },
         }
     }
@@ -64,18 +69,11 @@ impl Data {
 
 pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
     let mut canvas = Canvas::from_raw(raw_canvas);
-
     draw::clear(&mut canvas);
 
     let mov = Option::<Move>::from(input);
     let turn = Option::<Turn>::from(input);
-
-    let mut tick = false;
-    data.gravity_tick -= dt;
-    if data.gravity_tick < 0.0 {
-        data.gravity_tick = TICK;
-        tick = true;
-    }
+    let tick = data.gravity_timer.tick(dt);
 
     let mut show_disappearing = true;
 
@@ -107,87 +105,77 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
             }
         }
         State::Spawned { pos } => {
-            let mut new_pos = pos;
-
             if let Some(t) = turn {
                 try_turn_piece(data, t, pos);
             }
 
-            if let Some(m) = mov {
-                new_pos = try_move_piece(data, pos, m).unwrap_or(pos);
-            }
-
-            if tick {
+            let new_pos = if tick {
                 if let Some(p) = try_move_piece(data, pos, Move::Down) {
-                    new_pos = p
+                    p
                 } else {
                     data.cells.iter_mut()
                         .filter(|c| **c == Cell::Falling)
                         .for_each(|c| *c = Cell::Frozen);
+                    pos
                 }
-            }
+            } else {
+                mov.and_then(|m| try_move_piece(data, pos, m)).unwrap_or(pos)
+            };
 
             let mut full_rows_range = Option::<[usize; 2]>::None;
-            for (y, row) in data.cells.rows_mut().enumerate().rev() {
-                if row.iter().all(|c| *c == Cell::Frozen) {
-                    if let Some([_, end]) = full_rows_range {
-                        full_rows_range = Some([y, end]);
-                    } else {
-                        full_rows_range = Some([y, y]);
-                    }
-
+            data.cells.rows_mut().enumerate().rev()
+                .filter(|(_, row)| row.iter().all(|c| *c == Cell::Frozen))
+                .for_each(|(y, row)| {
                     for cell in row {
                         *cell = Cell::Disappearing;
                     }
-                }
-            }
 
-            if let Some(range) = full_rows_range {
-                data.state = State::ClearRows { range, show: false, blinks: 4 };
+                    full_rows_range = full_rows_range.map(|[_, end]| [y, end]).or(Some([y, y + 1]));
+                });
+
+            data.state = if let Some(range) = full_rows_range {
+                State::BlinkDisappearingRows { range, show: false, blinks: 4 }
             } else if tick && new_pos == pos {
-                data.state = State::NotSpawned;
+                State::NotSpawned
             } else {
-                data.state = State::Spawned { pos: new_pos };
-            }
-        },
-        State::ClearRows { range, show, blinks } => {
+                State::Spawned { pos: new_pos }
+            };
+        }
+        State::BlinkDisappearingRows { range, show, blinks } => {
             if blinks > 0 {
                 show_disappearing = show;
 
-                data.clear_row_flash_tick -= dt;
-                if data.clear_row_flash_tick < 0.0 {
-                    data.clear_row_flash_tick = CLEAR_ROW_FLASH_TICK;
-                    data.state = State::ClearRows { range, show: !show, blinks: blinks - 1 };
+                if data.clear_row_flash_timer.tick(dt) {
+                    data.state = State::BlinkDisappearingRows { range, show: !show, blinks: blinks - 1 };
                 }
             } else {
                 show_disappearing = false;
-                for y in 0..range[0] {
-                    for x in 0..data.cells.width() {
-                        let cell = &mut data.cells[[y, x]];
-                        if *cell == Cell::Frozen {
-                            *cell = Cell::Falling;
-                        }
-                    }
-                }
-                for y in range[0]..=range[1] {
-                    for x in 0..data.cells.width() {
-                        let cell = &mut data.cells[[y, x]];
-                        if *cell == Cell::Disappearing {
-                            *cell = Cell::Empty;
-                        }                    
-                    }
-                }
-                data.state = State::FallAfterClear;
+
+                data.state = State::ClearDisappearingRows { range };
             }  
-        },
+        }
+        State::ClearDisappearingRows { range: [start, end] } => {
+            data.cells.rows_mut().take(start)
+                .for_each(|row| row.iter_mut()
+                    .filter(|cell| **cell == Cell::Frozen)
+                    .for_each(|cell| *cell = Cell::Falling));
+
+            data.cells.rows_mut().take(end).skip(start)
+                .for_each(|row| row.iter_mut()
+                    .filter(|cell| **cell == Cell::Disappearing)
+                    .for_each(|cell| *cell = Cell::Empty));
+
+            data.state = State::FallAfterClear;
+        }
         State::FallAfterClear => {
             if tick && !try_fall(&mut data.cells) {
                 data.cells.iter_mut()
                     .filter(|c| **c == Cell::Falling)
                     .for_each(|c| *c = Cell::Frozen);
+
                 data.state = State::NotSpawned;
             }
-        },
+        }
     }
     draw::bucket(&mut canvas, &data.cells, show_disappearing);
 
@@ -201,10 +189,10 @@ fn try_fall(cells: &mut Bucket) -> bool {
     let width = cells.width();
     let height = cells.height();
     for y in (0..height).rev().skip(1) {
-        let free_dst = (0..width).map(|x| cells[[y + 1, x]]).all(|cell| cell == Cell::Empty);
+        let dst_is_free = (0..width).map(|x| cells[[y + 1, x]]).all(|cell| cell == Cell::Empty);
         let src_has_falling = (0..width).map(|x| cells[[y, x]]).any(|cell| cell == Cell::Falling);
 
-        if free_dst && src_has_falling {
+        if dst_is_free && src_has_falling {
             for x in 0..width {
                 cells[[y + 1, x]] = cells[[y, x]];
                 cells[[y, x]] = Cell::Empty;
@@ -233,7 +221,7 @@ enum PieceType {
     ReverseS,
 }
 
-const fn bool_to_cell(b: bool) -> Cell {
+const fn from_bool(b: bool) -> Cell {
     if b {
         Cell::Falling
     } else {
@@ -241,22 +229,23 @@ const fn bool_to_cell(b: bool) -> Cell {
     }
 }
 
-const fn blueprint_row(bin: u8) -> [Cell; 4] {
+const fn from_bin(bin: u8) -> [Cell; 4] {
     [
-        bool_to_cell(bin & 0b_1000 != 0),
-        bool_to_cell(bin & 0b_0100 != 0),
-        bool_to_cell(bin & 0b_0010 != 0),
-        bool_to_cell(bin & 0b_0001 != 0),
+        from_bool(bin & 0b_1000 != 0),
+        from_bool(bin & 0b_0100 != 0),
+        from_bool(bin & 0b_0010 != 0),
+        from_bool(bin & 0b_0001 != 0),
     ]
 }
 
 fn blueprint(bs: [u8; 4]) -> Grid<Cell, 4, 4> {
     [
-        blueprint_row(bs[0]),
-        blueprint_row(bs[1]),
-        blueprint_row(bs[2]),
-        blueprint_row(bs[3]),
-    ].into()
+        from_bin(bs[0]),
+        from_bin(bs[1]),
+        from_bin(bs[2]),
+        from_bin(bs[3]),
+    ]
+    .into()
 }
 
 impl Piece {
@@ -405,7 +394,6 @@ fn try_move_piece(data: &mut Data, pos: [usize; 2], mov: Move) -> Option<[usize;
     };
 
     {
-
         let [y0, x0] = new_pos;
         let [y1, x1] = [y0 + piece_height, x0 + piece_width];
 

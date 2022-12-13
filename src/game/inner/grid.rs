@@ -27,6 +27,7 @@ impl<T, const N: usize, const M: usize> Grid<T, N, M> {
         self.inner.iter_mut()
     }
 
+    #[allow(dead_code)]
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.inner.iter().flat_map(|row| row.iter())
     }

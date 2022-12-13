@@ -8,14 +8,16 @@ pub trait NumCast: Num {
     /// 
     /// Panics if conversion failed.
     fn num_cast<T>(self) -> T
-        where T: Num + TryFrom<Self>,
-              <T as TryFrom<Self>>::Error: Debug;
+    where
+        T: Num + TryFrom<Self>,
+        <T as TryFrom<Self>>::Error: Debug;
 }
 
 impl<U: Num> NumCast for U {
     fn num_cast<T>(self) -> T
-        where T: Num + TryFrom<Self>,
-              <T as TryFrom<Self>>::Error: Debug
+    where
+        T: Num + TryFrom<Self>,
+        <T as TryFrom<Self>>::Error: Debug
     {
         self.try_into().unwrap()
     }
