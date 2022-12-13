@@ -40,29 +40,13 @@ enum State {
 
 impl Data {
     pub fn new() -> Self {
-        let mut cells = Grid::filled(Cell::Empty);
-        for y in (cells.height() - 4)..(cells.height()) {
-            for x in 0..cells.width() {
-                cells[[y, x]] = Cell::Frozen;
-            }
-        }
-        let h = cells.height();
-        cells[[h - 1, 5]] = Cell::Empty;
-        cells[[h - 2, 5]] = Cell::Empty;
-        cells[[h - 3, 5]] = Cell::Empty;
-        cells[[h - 4, 5]] = Cell::Empty;
-        cells[[h - 4, 3]] = Cell::Empty;
-        cells[[h - 4, 4]] = Cell::Empty;
-        cells[[h - 4, 6]] = Cell::Empty;
-
-        const TICK: f64 = 0.5;
-        const CLEAR_ROW_FLASH_TICK: f64 = TICK / 2.0;
+        const GRAVITY_TICK: f64 = 0.5;
 
         Self {
             state: State::SpawnPiece,
-            cells,
-            gravity_timer: Timer::new(TICK),
-            clear_row_flash_timer: Timer::new(CLEAR_ROW_FLASH_TICK),
+            cells: Grid::filled(Cell::Empty),
+            gravity_timer: Timer::new(GRAVITY_TICK),
+            clear_row_flash_timer: Timer::new(GRAVITY_TICK / 2.0),
             piece: Piece::new(),
         }
     }
@@ -77,11 +61,6 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
     let tick = data.gravity_timer.tick(dt);
 
     let mut show_disappearing = true;
-
-    if tick {
-        dbg!(&data.state);
-        dbg!(&data.piece);
-    }
 
     match data.state {
         State::SpawnPiece => {
@@ -187,7 +166,7 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
         draw::grid(&mut canvas, &data.piece.next().get_blueprint(), CELL_PX, [y0, x0 + bucket_width_px + CELL_PX], false);
 
         let mouse = &input.mouse;
-        draw::cell(&mut canvas, mouse.x, mouse.y, draw::color::GREEN);
+        draw::cell(&mut canvas, CELL_PX, [mouse.y, mouse.x], draw::color::GREEN);
     }
 }
 

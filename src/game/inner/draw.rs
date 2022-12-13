@@ -4,8 +4,6 @@ use crate::num_cast::NumCast;
 use super::bucket::Cell;
 use super::grid::Grid;
 
-const CELL_PX: i32 = 30;
-
 pub fn grid<const N: usize, const M: usize>(
     canvas: &mut Canvas,
     bucket: &Grid<Cell, N, M>,
@@ -16,9 +14,11 @@ pub fn grid<const N: usize, const M: usize>(
     let bucket_width_px = bucket.width().num_cast::<i32>() * cell_px;
     let bucket_height_px = bucket.height().num_cast::<i32>() * cell_px;
 
-    for y in y0..(y0 + bucket_height_px) {
-        for x in x0..(x0 + bucket_width_px) {
-            if y == y0 || y == (y0 + bucket_height_px - 1) || x == x0 || x == (x0 + bucket_width_px - 1) {
+    let [y1, x1] = [y0 + bucket_height_px, x0 + bucket_width_px];
+
+    for y in y0..y1 {
+        for x in x0..x1 {
+            if y == y0 || y == (y1 - 1) || x == x0 || x == (x1 - 1) {
                 if let Some(pixel) = canvas.get_mut(x, y) {
                     *pixel = color::WHITE;
                 }
@@ -30,14 +30,14 @@ pub fn grid<const N: usize, const M: usize>(
         for (x, cell) in row.iter().enumerate() {
             if *cell == Cell::Falling || *cell == Cell::Frozen || (*cell == Cell::Disappearing && show_disappearing) {
                 let color = if *cell == Cell::Falling { color::BLUE } else { color::WHITE };
-                self::cell(canvas, x0 + x.num_cast::<i32>() * CELL_PX, y0 + y.num_cast::<i32>() * CELL_PX, color);
+                self::cell(canvas, cell_px, [y0 + y.num_cast::<i32>() * cell_px, x0 + x.num_cast::<i32>() * cell_px], color);
             }
         }
     }
 }
 
-pub fn cell(canvas: &mut Canvas, x0: i32, y0: i32, color: u32) {
-    const COLOR_SWITCH: [i32; 2] = [CELL_PX - 2, CELL_PX - 8];
+pub fn cell(canvas: &mut Canvas, cell_px: i32, [y0, x0]: [i32; 2], color: u32) {
+    let color_switch = [cell_px - 2, cell_px - 8];
 
     fn current(foreground: bool, color: u32) -> u32 {
         if foreground {
@@ -48,11 +48,11 @@ pub fn cell(canvas: &mut Canvas, x0: i32, y0: i32, color: u32) {
     }
 
     let mut foreground = false;
-    fill_square(canvas, current(foreground, color), x0, y0, x0 + CELL_PX, y0 + CELL_PX);
+    fill_square(canvas, current(foreground, color), [y0, x0], [y0 + cell_px, x0 + cell_px]);
 
-    for n in COLOR_SWITCH {
+    for n in color_switch {
         foreground = !foreground;
-        fill_square(canvas, current(foreground, color), x0 + CELL_PX - n, y0 + CELL_PX - n, x0 + n, y0 + n);
+        fill_square(canvas, current(foreground, color), [y0 + cell_px - n, x0 + cell_px - n], [y0 + n, x0 + n]);
     }
 }
 
@@ -63,7 +63,7 @@ pub mod color {
     pub const BLUE: u32 = 0x0000_00FF;
 }
 
-fn fill_square(canvas: &mut Canvas, color: u32, x0: i32, y0: i32, x1: i32, y1: i32) {
+fn fill_square(canvas: &mut Canvas, color: u32, [y0, x0]: [i32; 2], [y1, x1]: [i32; 2]) {
     for y in y0..y1 {
         for x in x0..x1 {
             if let Some(pixel) = canvas.get_mut(x, y) {
@@ -76,7 +76,7 @@ fn fill_square(canvas: &mut Canvas, color: u32, x0: i32, y0: i32, x1: i32, y1: i
 pub fn clear(canvas: &mut Canvas) {
     let width = canvas.width();
     let height = canvas.height();
-    fill_square(canvas, color::BLACK, 0, 0, width, height);
+    fill_square(canvas, color::BLACK, [0, 0], [height, width]);
 }
 
 pub struct Canvas<'a> {
