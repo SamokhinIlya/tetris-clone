@@ -1,16 +1,20 @@
 use crate::game::RawCanvas;
 use crate::num_cast::NumCast;
 
-use super::bucket::{Bucket, Cell};
+use super::bucket::Cell;
+use super::grid::Grid;
 
 const CELL_PX: i32 = 30;
 
-pub fn bucket(canvas: &mut Canvas, bucket: &Bucket, show_disappearing: bool) {
-    let bucket_width_px = bucket.width().num_cast::<i32>() * CELL_PX;
-    let bucket_height_px = bucket.height().num_cast::<i32>() * CELL_PX;
-
-    let x0 = canvas.width() / 2 - bucket_width_px / 2;
-    let y0 = canvas.height() / 2 - bucket_height_px / 2;
+pub fn grid<const N: usize, const M: usize>(
+    canvas: &mut Canvas,
+    bucket: &Grid<Cell, N, M>,
+    cell_px: i32,
+    [y0, x0]: [i32; 2],
+    show_disappearing: bool,
+) {
+    let bucket_width_px = bucket.width().num_cast::<i32>() * cell_px;
+    let bucket_height_px = bucket.height().num_cast::<i32>() * cell_px;
 
     for y in y0..(y0 + bucket_height_px) {
         for x in x0..(x0 + bucket_width_px) {

@@ -22,7 +22,7 @@ pub struct Data {
 
 #[derive(PartialEq, Debug)]
 enum State {
-    NotSpawned,
+    SpawnPiece,
     Spawned {
         pos: [usize; 2],
     },
@@ -35,6 +35,7 @@ enum State {
         range: [usize; 2],
     },
     FallAfterClear,
+    ChangePiece,
 }
 
 impl Data {
@@ -58,11 +59,11 @@ impl Data {
         const CLEAR_ROW_FLASH_TICK: f64 = TICK / 2.0;
 
         Self {
-            state: State::NotSpawned,
+            state: State::SpawnPiece,
             cells,
             gravity_timer: Timer::new(TICK),
             clear_row_flash_timer: Timer::new(CLEAR_ROW_FLASH_TICK),
-            piece: Piece { ty: PieceType::Square, rotations: 0 },
+            piece: Piece::new(),
         }
     }
 }
@@ -83,24 +84,11 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
     }
 
     match data.state {
-        State::NotSpawned => {
+        State::SpawnPiece => {
             if tick {
-                let n_piece = (data.piece.ty as usize).wrapping_add(1) % 7;
-                let piece_type = match n_piece {
-                    0 => PieceType::Square,
-                    1 => PieceType::Stick,
-                    2 => PieceType::L,
-                    3 => PieceType::ReverseL,
-                    4 => PieceType::T,
-                    5 => PieceType::S,
-                    6 => PieceType::ReverseS,
-                    _ => unreachable!(),
-                };
-
-                data.piece.ty = piece_type;
-
                 let pos = [0, 5];
                 spawn(&mut data.cells, data.piece, pos);
+
                 data.state = State::Spawned { pos };
             }
         }
@@ -136,7 +124,7 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
             data.state = if let Some(range) = full_rows_range {
                 State::BlinkDisappearingRows { range, show: false, blinks: 4 }
             } else if tick && new_pos == pos {
-                State::NotSpawned
+                State::ChangePiece
             } else {
                 State::Spawned { pos: new_pos }
             };
@@ -173,14 +161,34 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
                     .filter(|c| **c == Cell::Falling)
                     .for_each(|c| *c = Cell::Frozen);
 
-                data.state = State::NotSpawned;
+                data.state = State::ChangePiece;
             }
         }
-    }
-    draw::bucket(&mut canvas, &data.cells, show_disappearing);
+        State::ChangePiece => {
+            data.piece = data.piece.next();
 
-    let mouse = &input.mouse;
-    draw::cell(&mut canvas, mouse.x, mouse.y, draw::color::GREEN);
+            data.state = State::SpawnPiece;
+        }
+    }
+
+    // draw
+    {
+        use crate::num_cast::NumCast;
+
+        const CELL_PX: i32 = 30;
+
+        let bucket_width_px = data.cells.width().num_cast::<i32>() * CELL_PX;
+        let bucket_height_px = data.cells.height().num_cast::<i32>() * CELL_PX;
+
+        let x0 = canvas.width() / 2 - bucket_width_px / 2;
+        let y0 = canvas.height() / 2 - bucket_height_px / 2;
+        draw::grid(&mut canvas, &data.cells, CELL_PX, [y0, x0], show_disappearing);
+
+        draw::grid(&mut canvas, &data.piece.next().get_blueprint(), CELL_PX, [y0, x0 + bucket_width_px + CELL_PX], false);
+
+        let mouse = &input.mouse;
+        draw::cell(&mut canvas, mouse.x, mouse.y, draw::color::GREEN);
+    }
 }
 
 fn try_fall(cells: &mut Bucket) -> bool {
@@ -249,6 +257,30 @@ fn blueprint(bs: [u8; 4]) -> Grid<Cell, 4, 4> {
 }
 
 impl Piece {
+    fn new() -> Self {
+        Self {
+            ty: PieceType::Square,
+            rotations: 0,
+        }
+    }
+
+    fn next(&self) -> Self {
+        let mut result = Self::new();
+        result.ty = {
+            match (self.ty as usize).wrapping_add(1) % 7 {
+                0 => PieceType::Square,
+                1 => PieceType::Stick,
+                2 => PieceType::L,
+                3 => PieceType::ReverseL,
+                4 => PieceType::T,
+                5 => PieceType::S,
+                6 => PieceType::ReverseS,
+                _ => unreachable!(),
+            }
+        };
+        result
+    }
+
     fn turn(&mut self, turn: Turn) {
         self.rotations = match turn {
             Turn::Left => self.rotations.wrapping_sub(1) % 4,
