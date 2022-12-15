@@ -52,8 +52,10 @@ where
         [y1, x1]: [usize; 2],
         pred: impl Fn(&T) -> bool,
     ) {
-        let y1 = y0 + y1;
-        let x1 = x0 + x1;
+        use std::cmp::min;
+
+        let y1 = min(y0 + y1, self.height());
+        let x1 = min(x0 + x1, self.width());
         for (src_y, dst_y) in (y0..y1).enumerate() {
             for (src_x, dst_x) in (x0..x1).enumerate() {
                 let dst = &mut self[[dst_y, dst_x]];

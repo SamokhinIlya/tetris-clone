@@ -72,21 +72,18 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
             }
         }
         State::Spawned { pos } => {
-            if let Some(t) = turn {
-                try_turn_piece(data, t, pos);
-            }
-
-            let new_pos = if tick {
-                if let Some(p) = try_move_piece(data, pos, Move::Down) {
+            let mut new_pos = turn.and_then(|t| try_turn_piece(data, t, pos)).unwrap_or(pos);
+            new_pos = if tick {
+                if let Some(p) = try_move_piece(data, new_pos, Move::Down) {
                     p
                 } else {
                     data.cells.iter_mut()
                         .filter(|c| **c == Cell::Falling)
                         .for_each(|c| *c = Cell::Frozen);
-                    pos
+                    new_pos
                 }
             } else {
-                mov.and_then(|m| try_move_piece(data, pos, m)).unwrap_or(pos)
+                mov.and_then(|m| try_move_piece(data, new_pos, m)).unwrap_or(new_pos)
             };
 
             let mut full_rows_range = Option::<[usize; 2]>::None;
@@ -429,12 +426,27 @@ fn try_move_piece(data: &mut Data, pos: [usize; 2], mov: Move) -> Option<[usize;
     Some(new_pos)
 }
 
-fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> bool {
-    let [piece_height, piece_width] = data.piece.dims();
-    {
-        let blueprint = data.piece.get_blueprint();
+fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> Option<[usize; 2]> {
+    let mut new_pos = dbg!(pos);
 
-        let [y0, x0] = pos;
+    let mut turned = data.piece;
+    turned.turn(turn);
+
+    {
+        let [piece_height, piece_width] = turned.dims();
+        let blueprint = turned.get_blueprint();
+
+        let [y0, x0] = {
+            let [mut y, mut x] = new_pos;
+            if y + piece_height > data.cells.height() - 1 {
+                y = data.cells.height() - piece_height;
+            }
+            if x + piece_width > data.cells.width() - 1 {
+                x = data.cells.width() - piece_width;
+            }
+            new_pos = [y, x];
+            new_pos
+        };
         let [y1, x1] = [y0 + piece_height, x0 + piece_width];
 
         for (bp_y, y) in (y0..y1).enumerate() {
@@ -443,7 +455,7 @@ fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> bool {
                 let dst = data.cells[[y, x]];
 
                 if src == Cell::Falling && !(dst == Cell::Falling || dst == Cell::Empty) {
-                    return false
+                    return None
                 }
             }
         }
@@ -453,8 +465,8 @@ fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> bool {
         .filter(|c| **c == Cell::Falling)
         .for_each(|c| *c = Cell::Empty);
 
-    data.piece.turn(turn);
-    data.cells.copy_if(&data.piece.get_blueprint(), pos, data.piece.dims(), |c| *c == Cell::Falling);
+    data.piece = turned;
+    data.cells.copy_if(&data.piece.get_blueprint(), new_pos, data.piece.dims(), |c| *c == Cell::Falling);
 
-    true
+    Some(dbg!(new_pos))
 }
