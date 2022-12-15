@@ -54,7 +54,6 @@ impl Data {
 
 pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
     let mut canvas = Canvas::from_raw(raw_canvas);
-    draw::clear(&mut canvas);
 
     let mov = Option::<Move>::from(input);
     let turn = Option::<Turn>::from(input);
@@ -149,12 +148,12 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
 
     // draw
     {
-        use crate::num_cast::NumCast;
+        const CELL_PX: usize = 30;
 
-        const CELL_PX: i32 = 30;
+        draw::clear(&mut canvas);
 
-        let bucket_width_px = data.cells.width().num_cast::<i32>() * CELL_PX;
-        let bucket_height_px = data.cells.height().num_cast::<i32>() * CELL_PX;
+        let bucket_width_px = data.cells.width() * CELL_PX;
+        let bucket_height_px = data.cells.height() * CELL_PX;
 
         let x0 = canvas.width() / 2 - bucket_width_px / 2;
         let y0 = canvas.height() / 2 - bucket_height_px / 2;

@@ -31,8 +31,8 @@ pub struct Input {
 
 #[derive(Default, Debug)]
 pub struct Mouse {
-    pub x: i32,
-    pub y: i32,
+    pub x: usize,
+    pub y: usize,
     pub left: Button,
     pub right: Button,
 }

@@ -267,7 +267,7 @@ impl Bitmap {
     }
 
     fn size(&self) -> usize {
-        (self.width * self.height) as _
+        self.width * self.height
     }
 
     fn resize(&mut self, width: usize, height: usize) -> Result<(), std::alloc::LayoutError> {
