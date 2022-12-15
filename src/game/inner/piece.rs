@@ -1,4 +1,4 @@
-use super::{bucket::Cell, grid::Grid, input::Turn};
+use super::{field::Cell, grid::Grid, input::Turn};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Piece {
@@ -52,7 +52,7 @@ impl Piece {
         }
     }
 
-    pub fn next(&self) -> Self {
+    pub fn next(self) -> Self {
         let mut result = Self::new();
         result.ty = {
             match (self.ty as usize).wrapping_add(1) % 7 {
@@ -76,8 +76,8 @@ impl Piece {
         };
     }
 
-    pub fn dims(&self) -> [usize; 2] {
-        let blueprint = self.get_blueprint();
+    pub fn dims(self) -> [usize; 2] {
+        let blueprint = self.blueprint();
 
         let [y0, x0] = [0, 0];
         let [y1, x1] = [blueprint.height(), blueprint.width()];
@@ -99,7 +99,7 @@ impl Piece {
         [piece_height, piece_width]
     }
 
-    pub fn get_blueprint(&self) -> Grid<Cell, 4, 4> {
+    pub fn blueprint(self) -> Grid<Cell, 4, 4> {
         let mut blueprint = match self.ty {
             PieceType::Square => blueprint([
                 0b_1100,

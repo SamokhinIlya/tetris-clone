@@ -1,6 +1,6 @@
 use crate::game::Input;
 
-#[derive(PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Move {
     Left,
     Right,
@@ -24,7 +24,7 @@ impl From<&Input> for Option<Move> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Turn {
     Left,
     Right,

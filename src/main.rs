@@ -1,5 +1,7 @@
 #![allow(clippy::semicolon_if_nothing_returned)]
 
+// TODO: graphics behaving funny when windows scale is 125%
+
 mod game;
 mod num_cast;
 
@@ -221,7 +223,7 @@ impl std::ops::Index<usize> for Bitmap {
 
     fn index(&self, index: usize) -> &Self::Output {
         let size = self.size();
-        assert!(index <= size, "index = {}, size = {}", index, size);
+        assert!(index <= size, "index = {index}, size = {size}");
 
         unsafe { &*self.ptr.add(index) }
     }
@@ -230,7 +232,7 @@ impl std::ops::Index<usize> for Bitmap {
 impl std::ops::IndexMut<usize> for Bitmap {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let size = self.size();
-        assert!(index <= size, "index = {}, size = {}", index, size);
+        assert!(index <= size, "index = {index}, size = {size}");
 
         unsafe { &mut *self.ptr.add(index) }
     }

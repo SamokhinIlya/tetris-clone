@@ -1,6 +1,6 @@
 use crate::game::RawCanvas;
 
-use super::bucket::Cell;
+use super::field::Cell;
 use super::grid::Grid;
 
 pub fn grid<const N: usize, const M: usize>(

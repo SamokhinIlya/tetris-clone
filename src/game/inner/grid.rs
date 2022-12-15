@@ -108,8 +108,8 @@ where
 
     fn index(&self, i: I) -> &Self::Output {
         let [y, x] = *i.borrow();
-        assert!(y < Self::HEIGHT, "y out of bounds: HEIGHT is {} but y is {}", Self::HEIGHT, y);
-        assert!(x < Self::WIDTH, "x out of bounds: WIDTH is {} but x is {}", Self::WIDTH, x);
+        assert!(y < Self::HEIGHT, "y out of bounds: HEIGHT is {} but y is {y}", Self::HEIGHT);
+        assert!(x < Self::WIDTH, "x out of bounds: WIDTH is {} but x is {x}", Self::WIDTH);
 
         &self.inner[y][x]
     }
@@ -121,8 +121,8 @@ where
 {
     fn index_mut(&mut self, i: I) -> &mut Self::Output {
         let [y, x] = *i.borrow();
-        assert!(y < Self::HEIGHT, "y out of bounds: HEIGHT is {} but y is {}", Self::HEIGHT, y);
-        assert!(x < Self::WIDTH, "x out of bounds: WIDTH is {} but x is {}", Self::WIDTH, x);
+        assert!(y < Self::HEIGHT, "y out of bounds: HEIGHT is {} but y is {y}", Self::HEIGHT);
+        assert!(x < Self::WIDTH, "x out of bounds: WIDTH is {} but x is {x}", Self::WIDTH);
 
         &mut self.inner[y][x]
     }
