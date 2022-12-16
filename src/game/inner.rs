@@ -29,13 +29,10 @@ enum State {
         pos: [usize; 2],
     },
     BlinkDisappearingRows {
-        range: [usize; 2],
         show: bool,
         blinks: i32,
     },
-    ClearDisappearingRows {
-        range: [usize; 2],
-    },
+    ClearDisappearingRows,
     FallAfterClear,
     ChangePiece,
 }
@@ -85,50 +82,48 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
                 mov.and_then(|m| try_move_piece(data, m, new_pos)).unwrap_or(new_pos)
             };
 
-            let mut full_rows_range = Option::<[usize; 2]>::None;
-            data.field.rows_mut().enumerate().rev()
-                .filter(|(_, row)| row.iter().all(|c| *c == Cell::Frozen))
-                .for_each(|(y, row)| {
+            let mut has_full_rows = false;
+            data.field.rows_mut()
+                .filter(|row| row.iter().all(|c| *c == Cell::Frozen))
+                .for_each(|row| {
                     for cell in row {
                         *cell = Cell::Disappearing;
                     }
 
-                    full_rows_range = full_rows_range.map(|[_, end]| [y, end]).or(Some([y, y + 1]));
+                    has_full_rows = true;
                 });
 
-            if let Some(range) = full_rows_range {
-                State::BlinkDisappearingRows { range, show: false, blinks: 4 }
+            if has_full_rows {
+                State::BlinkDisappearingRows { show: false, blinks: 4 }
             } else if tick && new_pos == pos {
                 State::ChangePiece
             } else {
                 State::Spawned { pos: new_pos }
             }
         }
-        same @ State::BlinkDisappearingRows { range, show, blinks } => {
+        same @ State::BlinkDisappearingRows { show, blinks } => {
             if blinks > 0 {
                 show_disappearing = show;
 
                 if data.clear_row_flash_timer.tick(dt) {
-                    State::BlinkDisappearingRows { range, show: !show, blinks: blinks - 1 }
+                    State::BlinkDisappearingRows { show: !show, blinks: blinks - 1 }
                 } else {
                     same
                 }
             } else {
                 show_disappearing = false;
 
-                State::ClearDisappearingRows { range }
+                State::ClearDisappearingRows
             }  
         }
-        State::ClearDisappearingRows { range: [start, end] } => {
-            data.field.rows_mut().take(start)
-                .for_each(|row| row.iter_mut()
-                    .filter(|cell| **cell == Cell::Frozen)
-                    .for_each(|cell| *cell = Cell::Falling));
-
-            data.field.rows_mut().take(end).skip(start)
-                .for_each(|row| row.iter_mut()
-                    .filter(|cell| **cell == Cell::Disappearing)
-                    .for_each(|cell| *cell = Cell::Empty));
+        State::ClearDisappearingRows => {
+            for cell in data.field.iter_mut() {
+                *cell = match *cell {
+                    Cell::Frozen => Cell::Falling,
+                    Cell::Disappearing => Cell::Empty,
+                    c => c,
+                }
+            }
 
             State::FallAfterClear
         }
