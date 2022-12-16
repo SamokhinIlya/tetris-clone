@@ -1,6 +1,7 @@
 #![allow(clippy::semicolon_if_nothing_returned)]
 
 // TODO: graphics behaving funny when windows scale is 125%
+//       check ShowWindow options
 
 mod game;
 mod num_cast;
