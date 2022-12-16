@@ -1,3 +1,4 @@
-/target
-/.fleet
+*/target
+*/.fleet
+*/Cargo.lock
 flamegraph.svg
