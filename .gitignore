@@ -2,3 +2,5 @@
 */.fleet
 */Cargo.lock
 flamegraph.svg
+
+*/dist-newstyle
