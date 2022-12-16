@@ -251,7 +251,7 @@ fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> Option<[usize
                 y = height - piece_height;
             }
             if x + piece_width > width {
-                x = height - piece_width;
+                x = width - piece_width;
             }
             new_pos = [y, x];
             new_pos
