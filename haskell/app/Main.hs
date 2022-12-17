@@ -1,11 +1,9 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Main where
+
+import Msg
 
 import Control.Exception (SomeException, try)
 
-import GHC.Generics (Generic)
-import Foreign.CStorable
 import Foreign.Storable
 import Foreign.Ptr
 
@@ -74,20 +72,6 @@ createWindow inst className title width height =
         parent = Nothing
         menu = Nothing
     in Graphics.Win32.createWindowEx exStyle className title style x y w h parent menu inst wndProc
-
-data MSG = MSG { hwnd :: HWND
-               , message :: UINT
-               , wParam :: WPARAM
-               , lParam :: LPARAM
-               } deriving (Generic)
-
-instance CStorable MSG
-
-instance Storable MSG where
-    sizeOf = cSizeOf
-    alignment = cAlignment
-    poke = cPoke
-    peek = cPeek
 
 createClass :: HINSTANCE -> String -> IO ClassName
 createClass currentInstance name = do
