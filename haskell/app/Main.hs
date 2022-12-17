@@ -2,8 +2,6 @@ module Main where
 
 import Msg
 
-import Control.Exception (SomeException, try)
-
 import Foreign.Storable
 import Foreign.Ptr
 
@@ -15,10 +13,11 @@ import Graphics.Win32 ( mkClassName
                       , registerClass
                       , showWindow
                       , getDC
-                      , peekMessage
+                      , c_PeekMessage
                       , allocaMessage
                       , translateMessage
                       , dispatchMessage
+                      , postQuitMessage
                       )
 import Graphics.Win32 ( wS_OVERLAPPEDWINDOW
                       , cS_HREDRAW, cS_VREDRAW
@@ -38,7 +37,11 @@ import Graphics.Win32 ( wS_OVERLAPPEDWINDOW
                       )
 import Graphics.Win32.Window (ClassName)
 
-import Graphics.Win32.Message (wM_QUIT)
+import Graphics.Win32.Message ( wM_QUIT
+                              , wM_DESTROY
+                              --, wM_SETCURSOR - no SetCursor function
+                              --, wM_EXITSIZEMOVE - no message
+                              )
 
 main :: IO ()
 main = do
@@ -47,19 +50,29 @@ main = do
     window <- createWindow currentInstance className "Window title" 1280 720
     showWindow window sW_SHOWNORMAL
     deviceContext <- getDC (Just window)
-    allocaMessage $ \ptrMsg ->
-        let mainLoop = do
-                peekMessage ptrMsg Nothing 0 0 1
-                msg <- peek (castPtr ptrMsg :: Ptr MSG)
-                let m = message msg
-                if m == wM_QUIT
-                    then return ()
-                    else do
-                        () <$ translateMessage ptrMsg
-                        () <$ dispatchMessage ptrMsg
-                        mainLoop
+    let mainLoop = do
+            continue <- messagePump
+            if continue
+                then mainLoop
+                else return ()
         in mainLoop
-    return ()
+
+messagePump :: IO Bool
+messagePump = allocaMessage $ \ptrMsg ->
+    let handleMsg = do
+            res <- c_PeekMessage ptrMsg nullPtr 0 0 1
+            if res > 0
+                then do
+                    msg <- peek (castPtr ptrMsg :: Ptr MSG)
+                    let m = message msg
+                    if m == wM_QUIT
+                        then return False
+                        else do
+                            () <$ translateMessage ptrMsg
+                            () <$ dispatchMessage ptrMsg
+                            handleMsg
+                else return True
+    in handleMsg
 
 createWindow :: HINSTANCE -> ClassName -> String -> Int -> Int -> IO HWND
 createWindow inst className title width height =
@@ -76,13 +89,16 @@ createWindow inst className title width height =
 createClass :: HINSTANCE -> String -> IO ClassName
 createClass currentInstance name = do
     let style = cS_HREDRAW + cS_VREDRAW
-    let icon = Nothing
-    let cursor = Nothing
-    let brush = Nothing
-    let menu = Nothing
-    let className = mkClassName name
+        icon = Nothing
+        cursor = Nothing
+        brush = Nothing
+        menu = Nothing
+        className = mkClassName name
     registerClass (style, currentInstance, icon, cursor, brush, menu, className)
     return className
 
 wndProc :: HWND -> WindowMessage -> WPARAM -> LPARAM -> IO LRESULT
-wndProc hwnd wmsg wParam lParam = defWindowProcSafe (Just hwnd) wmsg wParam lParam
+wndProc hwnd wmsg wParam lParam
+    | wmsg == wM_DESTROY   = do postQuitMessage 0
+                                return 0
+    | otherwise            = defWindowProcSafe (Just hwnd) wmsg wParam lParam
