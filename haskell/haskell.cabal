@@ -25,12 +25,11 @@ executable haskell
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:    Msg
+    -- other-modules:    Msg
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:    base ^>=4.16.4.0
-                    , Win32 ^>=2.13.4.0
-                    , c-storable-deriving ^>=0.1.3
+                    , gloss ^>=1.13.2.2
     hs-source-dirs:   app
     default-language: Haskell2010
