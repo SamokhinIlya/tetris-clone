@@ -24,4 +24,4 @@ mkData
             where ((y0, x0), (y1, x1)) = bounds f
 
 update :: Data -> Canvas -> Input -> Float -> (Data, Canvas)
-update d canvas input dt = (d, Draw.cell white (100, 100) 30 canvas)
+update d canvas input dt = (d, Draw.field (field d) (100, 100) 30 False canvas)

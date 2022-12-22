@@ -2,9 +2,20 @@ module Game.Draw where
 
 import Canvas
 
+import Game.Field
+
 import Data.Array
 
 type Point = (Int, Int)
+
+field :: Field -> Point -> Int -> Bool -> Canvas -> Canvas
+field f (x0, y0) cellPx showDisappearing canvas =
+    canvas // [((y, x), white) | y <- [y0 .. y1]
+                               , x <- [x0 .. x1]
+                               , y == y0 || y == y1 || x == x0 || x == x1 ]
+        where (y1, x1) = (y0 + fieldHeightPx, x0 + fieldWidthPx)
+              (fieldHeightPx, fieldWidthPx) = let (_, (fieldHeight, fieldWidth)) = bounds f
+                                              in  (fieldHeight * cellPx, fieldWidth * cellPx)
 
 cell :: Pixel -> Point -> Int -> Canvas -> Canvas
 cell color (x, y) cellPx canvas = go color [cellPx, cellPx - 2, cellPx - 8] canvas
