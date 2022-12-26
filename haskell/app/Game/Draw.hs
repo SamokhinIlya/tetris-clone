@@ -17,39 +17,32 @@ field f (y0, x0) cellPx showDisappearing canvas = do
     drawCells canvas
     where
         drawBorder :: Canvas -> IO ()
-        drawBorder canvas = do
-            bounds <- getBounds canvas
-            go [((y, x), white) | y <- [y0 .. y1]
-                                , x <- [x0 .. x1]
-                                , (y == y0 || y == y1 || x == x0 || x == x1) && inBounds bounds (y, x) ]
+        drawBorder canvas =
+            forM_
+                [((y, x), white) | y <- [y0..y1]
+                                 , x <- [x0..x1]
+                                 , y `elem` [y0, y1] || x `elem` [x0, x1] ]
+                (uncurry $ writeArray canvas)
             where
-                (y1, x1)       = (y0 + fhPx, x0 + fwPx)
-                (fhPx, fwPx)   = let (_, (fh, fw)) = bounds f in ((fh + 1) * cellPx, (fw + 1) * cellPx)
-
-                go :: [((Int, Int), Pixel)] -> IO ()
-                go []                = pure ()
-                go ((i, color) : xs) = do
-                    writeArray canvas i color
-                    go xs
+                (y1  , x1  ) = (y0 + fhPx, x0 + fwPx)
+                (fhPx, fwPx) =
+                    let (_, (fh, fw)) = bounds f
+                    in
+                        ((fh + 1) * cellPx, (fw + 1) * cellPx)
 
         drawCells :: Canvas -> IO ()
-        drawCells canvas = go (filter onlyFalling (assocs f))
+        drawCells canvas =
+            forM_
+                (filter onlyFalling $ assocs f)
+                (\((y, x), color) -> cell white (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas)
             where
                 onlyFalling (_, Falling) = True
                 onlyFalling _            = False
 
-                go []                     = pure ()
-                go (((y, x), color) : xs) = do
-                    cell white (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas
-                    go xs
-
-inBounds :: ((Int, Int), (Int, Int)) -> (Int, Int) -> Bool
-inBounds ((y0, x0), (y1, x1)) (y, x) = y >= y0 && y <= y1 && x >= x0 && x <= x1
-
 cell :: Pixel -> Point -> Int -> Canvas -> IO ()
 cell color (y, x) cellPx canvas = do
     forM_
-        (zip [cellPx, cellPx - 2, cellPx - 8] (cycle [black, white]))
+        (zip [cellPx, cellPx - 2, cellPx - 8] $ cycle [black, white])
         (\(px, color) ->
             fillSquare color (x + cellPx - px, y + cellPx - px) (x + px, y + px) canvas)
 
