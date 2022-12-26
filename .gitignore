@@ -4,3 +4,5 @@
 flamegraph.svg
 
 */dist-newstyle
+*/*.hp
+*/*.prof

@@ -23,6 +23,11 @@ extra-source-files: CHANGELOG.md
 
 executable haskell
     main-is:          Main.hs
+    ghc-options:      -O2
+                      -threaded
+                      -prof
+                      -fprof-auto
+                      "-with-rtsopts=-p"
 
     -- Modules included in this executable, other than Main.
     other-modules:    Game
