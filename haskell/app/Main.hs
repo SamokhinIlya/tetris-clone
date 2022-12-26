@@ -1,23 +1,31 @@
 module Main where
 
+import System.Exit
+
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
+import Graphics.Gloss.Interface.IO.Game
 
 import Data.ByteString (ByteString, pack)
 
-import Data.Array
+import Data.Array.Storable
+import Data.Word
+import Foreign.Ptr
+import Foreign.ForeignPtr
 
 import qualified Game
 
-import Canvas (Canvas)
+import Canvas (Canvas, Pixel)
+import qualified Canvas
 import Input
 
 main :: IO ()
-main = play window background updatesPerSecond d render handleEvent update
-    where d                = mkData (1280, 720)
-          window           = InWindow "title" (width d, height d) (100, 100)
-          background       = black
-          updatesPerSecond = 60
+main = do
+    d <- mkData (1280, 720)
+    let window           = InWindow "title" (width d, height d) (100, 100)
+        background       = green
+        updatesPerSecond = 60
+    playIO window background updatesPerSecond d render handleEvent update
 
 data Data = Data
     { canvas :: Canvas
@@ -27,31 +35,31 @@ data Data = Data
     , input :: Input
     }
 
-mkData :: (Int, Int) -> Data
-mkData (w, h) = Data
-    { canvas = array ((0, 0), (h - 1, w - 1)) [((y, x), color) | y <- [0..(h - 1)]
-                                                               , x <- [0..(w - 1)] ]
-    , width = w
-    , height = h
-    , gameData = Game.mkData
-    , input = Input
-    }
-    where color = (0xFF, 0x00, 0x00, 0x00)
+mkData :: (Int, Int) -> IO Data
+mkData (w, h) = do
+    canvas <- newArray ((0, 0), (h - 1, w - 1)) Canvas.black
+    pure $ Data
+        { canvas = canvas 
+        , width = w
+        , height = h
+        , gameData = Game.mkData
+        , input = Input
+        }
 
-render :: Data -> Picture
-render d = bitmapOfByteString (width d) (height d) format byteString False
+render :: Data -> IO Picture
+render d = do
+    withStorableArray (canvas d) toBitmap
     where
-        format                   = BitmapFormat TopToBottom PxABGR
-        byteString               = (pack . concatMap pixelToList . elems . canvas) d
-        pixelToList (a, b, g, r) = [a, b, g, r]
+        toBitmap ptr = do
+            let format = BitmapFormat TopToBottom PxRGBA
+            foreignPtr <- newForeignPtr_ (castPtr ptr :: Ptr Word8)
+            pure $ bitmapOfForeignPtr (width d) (height d) format foreignPtr False
 
-handleEvent :: Event -> Data -> Data
-handleEvent event d = d
 
-update :: Float -> Data -> Data
-update dt d
-    = d
-    { canvas = newCanvas
-    , gameData = newGameData
-    }
-    where (newGameData, newCanvas) = Game.update (gameData d) (canvas d) (input d) dt
+handleEvent :: Event -> Data -> IO Data
+handleEvent event d = pure d
+
+update :: Float -> Data -> IO Data
+update dt d = do
+    (newGameData, newCanvas) <- Game.update (gameData d) (canvas d) (input d) dt
+    pure d { canvas = newCanvas , gameData = newGameData }

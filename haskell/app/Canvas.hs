@@ -1,14 +1,14 @@
 module Canvas where
 
 import Data.Word
-import Data.Array
+import Data.Array.Storable
 
-type Canvas = Array (Int, Int) Pixel
+type Canvas = StorableArray (Int, Int) Pixel
 
-type Pixel = (Word8, Word8, Word8, Word8)
+type Pixel = Word32
 
 black :: Pixel
-black = (0xFF, 0x00, 0x00, 0x00)
+black = 0xFF000000
 
 white :: Pixel
-white = (0xFF, 0xFF, 0xFF, 0xFF)
+white = 0xFFFFFFFF
