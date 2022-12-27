@@ -32,12 +32,19 @@ field f (y0, x0) cellPx showDisappearing canvas = do
 
     drawCells :: Canvas -> IO ()
     drawCells canvas =
-      forM_
-        (filter onlyFalling $ assocs f)
-        (\((y, x), color) -> cell white (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas)
+      forM_ (drawable f) $ \((y, x), c) ->
+        cell (cellColor c) (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas
       where
-        onlyFalling (_, Falling) = True
-        onlyFalling _            = False
+        drawable f = filter isDrawable $ assocs f
+          where
+            isDrawable (_, c) = case c of
+              Falling      -> True
+              Frozen       -> True
+              Disappearing -> showDisappearing
+              Empty        -> False
+
+        cellColor Falling = blue
+        cellColor _       = white
 
 cell :: Pixel -> Point -> Int -> Canvas -> IO ()
 cell color (y, x) cellPx canvas = do

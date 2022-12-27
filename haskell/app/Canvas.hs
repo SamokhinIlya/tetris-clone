@@ -12,3 +12,6 @@ black = 0xFF000000
 
 white :: Pixel
 white = 0xFFFFFFFF
+
+blue :: Pixel
+blue = 0xFFFF0000
