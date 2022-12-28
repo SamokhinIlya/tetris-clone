@@ -29,6 +29,7 @@ mkData = Data
 
 update :: Data -> Canvas -> Input -> Float -> IO (Data, Canvas)
 update d canvas input dt = do
+  print input
   (_, (ch, cw)) <- getBounds canvas
   let
     (_, (fh, fw)) = bounds . field $ d

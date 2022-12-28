@@ -1,4 +1,5 @@
-module Main where
+{-# LANGUAGE BlockArguments #-}
+module Main(main) where
 
 import System.Exit
 
@@ -17,7 +18,9 @@ import qualified Game
 
 import Canvas (Canvas, Pixel)
 import qualified Canvas
-import Input
+import qualified Input(update)
+import Input hiding (update)
+import Control.Monad (when)
 
 main :: IO ()
 main = do
@@ -39,12 +42,12 @@ data Data = Data
 mkData :: (Int, Int) -> IO Data
 mkData (w, h) = do
   canvas <- newArray ((0, 0), (h - 1, w - 1)) Canvas.black
-  pure $ Data
+  pure Data
     { canvas = canvas 
     , width = w
     , height = h
     , gameData = Game.mkData
-    , input = Input
+    , input = mkInput
     }
 
 render :: Data -> IO Picture
@@ -58,7 +61,30 @@ render d = do
 
 
 handleEvent :: Event -> Data -> IO Data
-handleEvent event d = pure d
+handleEvent event d = case event of
+  EventKey (SpecialKey key) state _ _ -> updKey key state
+  _                                   -> pure d
+  where
+    updKey :: SpecialKey -> KeyState -> IO Data
+    updKey key state = do
+      when (key `elem` [KeyDown, KeyLeft, KeyRight]) $
+        print (key, state)
+      pure $ updKeyboard case key of
+        KeyDown  -> kb { down  = updated down  }
+        KeyLeft  -> kb { left  = updated left  }
+        KeyRight -> kb { right = updated right }
+        _        -> kb
+      where 
+        updKeyboard new = d
+          { input = (input d)
+            { keyboard = new 
+            }
+          }
+        updated button = Input.update (asBool state) . button $ kb
+          where
+            asBool Down = True
+            asBool Up   = False
+        kb = keyboard . input $ d
 
 update :: Float -> Data -> IO Data
 update dt d = do
