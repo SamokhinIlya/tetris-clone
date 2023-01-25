@@ -1,6 +1,6 @@
 module Input(
   Input, mkInput, mouse, keyboard,
-  Mouse,
+  Mouse, lmb, rmb,
   Keyboard, left, right, down,
   Button, update, isPressed, justPressed)
     where
@@ -12,11 +12,20 @@ data Input = Input
 
 mkInput :: Input
 mkInput = Input
-  { mouse = Mouse
+  { mouse = mkMouse
   , keyboard = mkKeyboard
   }
 
-data Mouse = Mouse deriving (Show)
+data Mouse = Mouse
+  { lmb :: Button
+  , rmb :: Button
+  } deriving (Show)
+
+mkMouse :: Mouse
+mkMouse = Mouse
+  { lmb = mkButton
+  , rmb = mkButton
+  }
 
 data Keyboard = Keyboard
   { left  :: Button
