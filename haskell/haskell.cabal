@@ -35,6 +35,9 @@ executable haskell
                     , Input
                     , Game.Draw
                     , Game.Field
+                    , Game.Input
+                    , Game.Piece
+                    , Game.Timer
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -42,5 +45,6 @@ executable haskell
                     , gloss ^>=1.13.2.2
                     , bytestring
                     , array
+                    , split
     hs-source-dirs:   app
     default-language: Haskell2010
