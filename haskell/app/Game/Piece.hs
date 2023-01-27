@@ -9,19 +9,21 @@ module Game.Piece
   , rowsCols
   , blueprint
   , turn
+  , next
   ) where
 
-import Data.Array
+import GHC.Arr
 import Data.Bits ((.&.))
 import Data.List
 import Data.List.Split
+import Data.Maybe
 import Data.Word
 
 import Game.Field hiding (dims)
 import qualified Game.Field as Field (dims)
 import Game.Input
 
-data Piece = Piece { ty :: PieceType, rotations :: Word8 }
+data Piece = Piece { ty :: PieceType, rotations :: Int } deriving Show
 
 data PieceType =
   Square
@@ -31,7 +33,7 @@ data PieceType =
   | T
   | S
   | ReverseS
-  deriving Enum
+  deriving (Show, Enum)
 
 fromBool :: Bool -> Cell
 fromBool True  = Falling
@@ -46,7 +48,7 @@ fromBin bin =
   ]
 
 mkBlueprint :: [Word8] -> Array (Int, Int) Cell
-mkBlueprint bs = array ((0, 0), (3, 3)) $ zip [(y, x) | y <- [0..3], x <- [0..3]] $ concatMap fromBin bs
+mkBlueprint bs = listArray ((0, 0), (3, 3)) $ concatMap fromBin bs
 
 mkPiece :: Piece
 mkPiece = Piece { ty = Square, rotations = 0 }
@@ -65,9 +67,9 @@ dims p =
     b      = blueprint p
     (h, w) = Field.dims b
     (rows, cols) = rowsCols b
-  in
-    ( maybe h ((+1) . fst) . find anyIsFalling . reverse . zip [0..] $ rows
-    , maybe w ((+1) . fst) . find anyIsFalling . reverse . zip [0..] $ cols
+  in 
+    ( maybe h (h-) . findIndex (any isFalling) . reverse $ rows
+    , maybe w (w-) . findIndex (any isFalling) . reverse $ cols
     )
 
 rowsCols :: Array (Int, Int) Cell -> ([[Cell]], [[Cell]])
@@ -79,36 +81,25 @@ rowsCols a =
     (h, w) = Field.dims a
     colsFirst ((_, x), _) ((_, x'), _) = compare x x'
 
-anyIsFalling :: (Int, [Cell]) -> Bool
-anyIsFalling (_, cs) = any isFalling cs
-  where
-    isFalling Falling = True
-    isFalling _       = False
+isFalling :: Cell -> Bool
+isFalling Falling = True
+isFalling _       = False
 
 blueprint :: Piece -> Array (Int, Int) Cell
-blueprint p = 
+blueprint p =
   let
-    rotated = iterate (rotate False) blueprint !! (fromInteger . toInteger $ rotations p)
-    (rows, cols) = rowsCols rotated
+    rotated = iterate (rotate False) bp !! rotations p
     (srcY, srcX) =
-      ( maybe 0 fst . find anyIsFalling . zip [0..] $ rows
-      , maybe 0 fst . find anyIsFalling . zip [0..] $ cols
-      )
-    ((y0, x0), (y1, x1)) = bounds rotated
-    e y x a =
-      let (y', x') = (y + srcY, x + srcX)
-      in if inBounds y' x' a
-        then a ! (y', x)
-        else Empty
-      where
-        inBounds y x a =
-          let ((y0, x0), (y1, x1)) = bounds a
-          in y >= y0 && y <= y1
-            && x >= x0 && x <= x1
+      let (rows, cols) = rowsCols rotated
+      in
+        ( fromMaybe 0 $ findIndex (any isFalling) rows
+        , fromMaybe 0 $ findIndex (any isFalling) cols
+        )
+    getOrEmpty i a = if inRange (bounds a) i then a ! i else Empty
   in
-    array (bounds rotated) [((y, x), e y x rotated) | y <- [y0..y1], x <- [x0..x1]]
+    array (bounds rotated) [((y, x), getOrEmpty (y + srcY, x + srcX) rotated) | (y, x) <- range (bounds rotated)]
   where 
-    blueprint = case ty p of
+    bp = case ty p of
       Square -> mkBlueprint
         [ 0b_1100
         , 0b_1100
