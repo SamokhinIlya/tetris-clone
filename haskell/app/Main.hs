@@ -3,6 +3,8 @@ module Main(main) where
 
 import System.Exit
 
+import GHC.Float
+
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
 import Graphics.Gloss.Interface.IO.Game
@@ -60,6 +62,7 @@ render d = do
       pure $ bitmapOfForeignPtr (width d) (height d) format foreignPtr False
 
 
+-- TODO: store key events -> in update convert them to Input -> delete events
 handleEvent :: Event -> Data -> IO Data
 handleEvent event d = case event of
   EventKey (SpecialKey key) state _ _ -> updKey key state
@@ -67,8 +70,6 @@ handleEvent event d = case event of
   where
     updKey :: SpecialKey -> KeyState -> IO Data
     updKey key state = do
-      when (key `elem` [KeyDown, KeyLeft, KeyRight]) $
-        print (key, state)
       pure $ updKeyboard case key of
         KeyDown  -> kb { down  = updated down  }
         KeyLeft  -> kb { left  = updated left  }
@@ -88,5 +89,5 @@ handleEvent event d = case event of
 
 update :: Float -> Data -> IO Data
 update dt d = do
-  (newGameData, newCanvas) <- Game.update (gameData d) (canvas d) (input d) dt
+  (newGameData, newCanvas) <- Game.update (gameData d) (canvas d) (input d) (float2Double dt)
   pure d { canvas = newCanvas , gameData = newGameData }

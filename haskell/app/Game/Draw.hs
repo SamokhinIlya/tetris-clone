@@ -49,7 +49,7 @@ field f (y0, x0) cellPx showDisappearing canvas = do
 cell :: Pixel -> Point -> Int -> Canvas -> IO ()
 cell color (y, x) cellPx canvas = do
   forM_
-    (zip [cellPx, cellPx - 2, cellPx - 8] $ cycle [black, white])
+    (zip [cellPx, cellPx - 2, cellPx - 8] $ cycle [black, color])
     (\(px, color) -> fillSquare color (x + cellPx - px, y + cellPx - px) (x + px, y + px) canvas)
 
 fillSquare :: Pixel -> Point -> Point -> Canvas -> IO ()
@@ -58,6 +58,11 @@ fillSquare color (x0, y0) (x1, y1) canvas =
     [((y, x), color) | y <- [y0..(y1 - 1)]
                      , x <- [x0..(x1 - 1)] ]
     (uncurry $ writeArray canvas)
+
+clear :: Canvas -> IO ()
+clear canvas = do
+  ((y0, x0), (y1, x1)) <- getBounds canvas
+  fillSquare black (x0, y0) (x1 + 1, y1 + 1) canvas
 
 {-
 TODO: why this won't work (recursive) but forM_ does?

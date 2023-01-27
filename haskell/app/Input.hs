@@ -46,9 +46,8 @@ data Button = Button
   }
 
 instance Show Button where
-  show b = if curr b
-    then "_"
-    else "T"
+  show b =
+    (if curr b then "_" else "T") <> (if prev b then "_" else "T")
 
 mkButton :: Button
 mkButton = Button

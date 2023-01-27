@@ -2,7 +2,7 @@ module Game.Input where
 
 import Input
 
-data Move = MoveLeft | MoveRight | MoveDown
+data Move = MoveLeft | MoveRight | MoveDown deriving Show
 
 mkMove :: Input -> Maybe Move
 mkMove input
@@ -18,7 +18,7 @@ mkMove input
         (True , False) -> Just MoveLeft
         (False, True ) -> Just MoveRight
 
-data Turn = TurnLeft | TurnRight
+data Turn = TurnLeft | TurnRight deriving Show
 
 mkTurn :: Input -> Maybe Turn
 mkTurn input =
