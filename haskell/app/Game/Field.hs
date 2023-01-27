@@ -2,7 +2,7 @@ module Game.Field where
 
 import Data.Array
 
-data Cell = Empty | Falling | Frozen | Disappearing
+data Cell = Empty | Falling | Frozen | Disappearing deriving Show
 
 type Field = Array (Int, Int) Cell
 
@@ -23,14 +23,15 @@ dims a =
   in (y1 - y0 + 1, x1 - x0 + 1)
 
 copyIf :: (Cell -> Bool) -> Field -> (Int, Int) -> (Int, Int) -> Field -> Field
-copyIf pred grid (y0, x0) (y1, x1) self =
+copyIf pred grid (y0, x0) (y1', x1') self =
   let
     (h, w) = dims self
-    y1 = min (y0 + y1 - 1) (h - 1)
-    x1 = min (x0 + x1 - 1) (w - 1)
+    y1 = min (y0 + y1' - 1) (h - 1)
+    x1 = min (x0 + x1' - 1) (w - 1)
   in
-    self // [((y, x), if pred (grid ! (y, x)) then grid ! (y, x) else self ! (y, x))
-      | y <- [y0..y1], x <- [x0..x1]]
+    self // [((y', x'), grid ! (y, x)) | (y, y') <- zip [0..] [y0..y1]
+                                       , (x, x') <- zip [0..] [x0..x1]
+                                       , pred $ grid ! (y, x)         ]
 
 rotate :: Bool -> Field -> Field
 rotate left f
