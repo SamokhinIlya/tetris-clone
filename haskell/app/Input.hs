@@ -2,7 +2,7 @@
 
 module Input
   ( Input, mkInput, mouse, keyboard
-  , Mouse, lmb, rmb
+  , Mouse, MouseKey(..)
   , Keyboard, KBKey(..)
   , Button, mkButton, update, isPressed, justPressed
   ) where
@@ -20,16 +20,15 @@ mkInput = Input
   , keyboard = mkKeyboard
   }
 
-data Mouse = Mouse
-  { lmb :: Button
-  , rmb :: Button
-  } deriving (Show)
+type Mouse = Map.Map MouseKey Button
+
+data MouseKey =
+  MouseLeft
+  | MouseRight
+  deriving (Enum, Bounded, Eq, Ord, Show)
 
 mkMouse :: Mouse
-mkMouse = Mouse
-  { lmb = mkButton
-  , rmb = mkButton
-  }
+mkMouse = Map.fromList $ map (, mkButton) ([minBound..maxBound] :: [MouseKey])
 
 type Keyboard = Map.Map KBKey Button
 

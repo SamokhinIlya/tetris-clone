@@ -45,7 +45,8 @@ data Data = Data
   , height :: Int
   , gameData :: Game.Data
   , input :: Input
-  , inputEvents :: Map.Map KBKey (NonEmpty KeyState)
+  , keyboardState :: Map.Map KBKey (NonEmpty KeyState)
+  , mouseState :: Map.Map MouseKey (NonEmpty KeyState)
   }
 
 mkData :: (Int, Int) -> IO Data
@@ -57,7 +58,8 @@ mkData (w, h) = do
     , height = h
     , gameData = Game.mkData
     , input = mkInput
-    , inputEvents = Map.empty
+    , keyboardState = Map.empty
+    , mouseState = Map.empty
     }
 
 render :: Data -> IO Picture
@@ -68,7 +70,6 @@ render d = do
       let format = BitmapFormat TopToBottom PxRGBA
       foreignPtr <- newForeignPtr_ (castPtr ptr :: Ptr Word8)
       pure $ bitmapOfForeignPtr (width d) (height d) format foreignPtr False
-
 
 handleEvent :: Event -> Data -> IO Data
 handleEvent event d = case event of
@@ -81,20 +82,32 @@ handleEvent event d = case event of
         _        -> Nothing
     in
       case kk of
-        Just k -> print key >> print state >> pure d { inputEvents = Map.insertWith NonEmpty.append k (NonEmpty.singleton state) (inputEvents d) }
+        Just k -> pure d { keyboardState = Map.insertWith NonEmpty.append k (NonEmpty.singleton state) (keyboardState d) }
+        Nothing -> pure d
+  EventKey (MouseButton key) state _ _ ->
+    let
+      kk = case key of
+        LeftButton  -> Just MouseLeft
+        RightButton -> Just MouseRight
+        _           -> Nothing
+    in
+      case kk of
+        Just k -> pure d { mouseState = Map.insertWith NonEmpty.append k (NonEmpty.singleton state) (mouseState d) }
         Nothing -> pure d
   _ -> pure d
 
 update :: Float -> Data -> IO Data
 update dt d = do
-  let (inputEvents', input') = updateInput (inputEvents d) (input d)
+  let input' = updateInput d
   (gameData', canvas') <- Game.update (gameData d) (canvas d) input' (float2Double dt)
-  pure d { canvas = canvas' , gameData = gameData', input = input', inputEvents = inputEvents' }
+  pure d { canvas = canvas' , gameData = gameData', input = input', keyboardState = Map.empty, mouseState = Map.empty }
   where
-    updateInput events input =
-      (Map.empty, input { keyboard = Map.mapWithKey updateKey (keyboard input) })
+    updateInput d = (input d)
+      { keyboard = Map.mapWithKey (updateKey $ keyboardState d) (keyboard $ input d)
+      , mouse = Map.mapWithKey (updateKey $ mouseState d) (mouse $ input d)
+      }
         where
-          updateKey k b = maybe (Input.update (isPressed b) b) (foldr (Input.update . asBool) b) (Map.lookup k events)
+          updateKey events k b = maybe (Input.update (isPressed b) b) (foldr (Input.update . asBool) b) (Map.lookup k events)
 
           asBool Down = True
           asBool Up   = False

@@ -24,8 +24,8 @@ data Turn = TurnLeft | TurnRight deriving Show
 mkTurn :: Input -> Maybe Turn
 mkTurn input =
   let
-    turnLeft  = justPressed . lmb $ mouse input
-    turnRight = justPressed . rmb $ mouse input
+    turnLeft  = justPressed $ mouse input ! MouseLeft
+    turnRight = justPressed $ mouse input ! MouseRight
   in
     case (turnLeft, turnRight) of
       (True , True ) -> Nothing
