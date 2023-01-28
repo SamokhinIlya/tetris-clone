@@ -33,7 +33,7 @@ data PieceType =
   | T
   | S
   | ReverseS
-  deriving (Show, Enum)
+  deriving (Show, Enum, Bounded)
 
 fromBool :: Bool -> Cell
 fromBool True  = Falling
@@ -54,7 +54,7 @@ mkPiece :: Piece
 mkPiece = Piece { ty = Square, rotations = 0 }
 
 next :: Piece -> Piece
-next p = p { ty = succ $ ty p }
+next p = p { ty = toEnum (succ (fromEnum (ty p)) `mod` (fromEnum (maxBound :: PieceType) + 1)) }
 
 -- TODO: mod or %?
 turn :: Turn -> Piece -> Piece
