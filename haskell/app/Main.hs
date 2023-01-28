@@ -70,7 +70,6 @@ render d = do
       pure $ bitmapOfForeignPtr (width d) (height d) format foreignPtr False
 
 
--- TODO: store key events -> in update convert them to Input -> delete events
 handleEvent :: Event -> Data -> IO Data
 handleEvent event d = case event of
   EventKey (SpecialKey key) state _ _ ->
