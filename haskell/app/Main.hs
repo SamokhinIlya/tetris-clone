@@ -1,4 +1,6 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TupleSections #-}
+
 module Main(main) where
 
 import System.Exit
@@ -24,6 +26,10 @@ import qualified Input(update)
 import Input hiding (update)
 import Control.Monad (when)
 
+import qualified Data.Map.Strict as Map
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
+
 main :: IO ()
 main = do
   d <- mkData (1280, 720)
@@ -39,6 +45,7 @@ data Data = Data
   , height :: Int
   , gameData :: Game.Data
   , input :: Input
+  , inputEvents :: Map.Map KBKey (NonEmpty KeyState)
   }
 
 mkData :: (Int, Int) -> IO Data
@@ -50,6 +57,7 @@ mkData (w, h) = do
     , height = h
     , gameData = Game.mkData
     , input = mkInput
+    , inputEvents = Map.empty
     }
 
 render :: Data -> IO Picture
@@ -65,29 +73,29 @@ render d = do
 -- TODO: store key events -> in update convert them to Input -> delete events
 handleEvent :: Event -> Data -> IO Data
 handleEvent event d = case event of
-  EventKey (SpecialKey key) state _ _ -> updKey key state
-  _                                   -> pure d
-  where
-    updKey :: SpecialKey -> KeyState -> IO Data
-    updKey key state = do
-      pure $ updKeyboard case key of
-        KeyDown  -> kb { down  = updated down  }
-        KeyLeft  -> kb { left  = updated left  }
-        KeyRight -> kb { right = updated right }
-        _        -> kb
-      where 
-        updKeyboard new = d
-          { input = (input d)
-            { keyboard = new 
-            }
-          }
-        updated button = Input.update (asBool state) . button $ kb
-          where
-            asBool Down = True
-            asBool Up   = False
-        kb = keyboard . input $ d
+  EventKey (SpecialKey key) state _ _ ->
+    let
+      kk = case key of
+        KeyDown  -> Just KBDown
+        KeyLeft  -> Just KBLeft
+        KeyRight -> Just KBRight
+        _        -> Nothing
+    in
+      case kk of
+        Just k -> print key >> print state >> pure d { inputEvents = Map.insertWith NonEmpty.append k (NonEmpty.singleton state) (inputEvents d) }
+        Nothing -> pure d
+  _ -> pure d
 
 update :: Float -> Data -> IO Data
 update dt d = do
-  (newGameData, newCanvas) <- Game.update (gameData d) (canvas d) (input d) (float2Double dt)
-  pure d { canvas = newCanvas , gameData = newGameData }
+  let (inputEvents', input') = updateInput (inputEvents d) (input d)
+  (gameData', canvas') <- Game.update (gameData d) (canvas d) input' (float2Double dt)
+  pure d { canvas = canvas' , gameData = gameData', input = input', inputEvents = inputEvents' }
+  where
+    updateInput events input =
+      (Map.empty, input { keyboard = Map.mapWithKey updateKey (keyboard input) })
+        where
+          updateKey k b = maybe (Input.update (isPressed b) b) (foldr (Input.update . asBool) b) (Map.lookup k events)
+
+          asBool Down = True
+          asBool Up   = False

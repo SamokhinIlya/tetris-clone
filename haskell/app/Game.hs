@@ -55,7 +55,6 @@ mkData = Data
 
 update :: Data -> Canvas -> Input -> Double -> IO (Data, Canvas)
 update d canvas input dt = do
-  print input
   let
     mov                     = mkMove input
     turn                    = mkTurn input

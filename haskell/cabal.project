@@ -1,2 +1,2 @@
 packages: *.cabal
-constraints: gloss -glut +glfw
+constraints: gloss +glut -glfw

@@ -1,9 +1,13 @@
-module Input(
-  Input, mkInput, mouse, keyboard,
-  Mouse, lmb, rmb,
-  Keyboard, left, right, down,
-  Button, update, isPressed, justPressed)
-    where
+{-# LANGUAGE TupleSections #-}
+
+module Input
+  ( Input, mkInput, mouse, keyboard
+  , Mouse, lmb, rmb
+  , Keyboard, KBKey(..)
+  , Button, mkButton, update, isPressed, justPressed
+  ) where
+
+import qualified Data.Map.Strict as Map
 
 data Input = Input
   { mouse    :: Mouse
@@ -27,18 +31,16 @@ mkMouse = Mouse
   , rmb = mkButton
   }
 
-data Keyboard = Keyboard
-  { left  :: Button
-  , right :: Button
-  , down  :: Button
-  } deriving (Show)
+type Keyboard = Map.Map KBKey Button
+
+data KBKey =
+  KBLeft
+  | KBRight
+  | KBDown
+  deriving (Enum, Bounded, Eq, Ord, Show)
 
 mkKeyboard :: Keyboard
-mkKeyboard = Keyboard
-  { left  = mkButton
-  , right = mkButton
-  , down  = mkButton
-  }
+mkKeyboard = Map.fromList $ map (, mkButton) ([minBound..maxBound] :: [KBKey])
 
 data Button = Button
   { prev :: Bool

@@ -44,5 +44,6 @@ executable haskell
                     , bytestring
                     , array
                     , split
+                    , containers
     hs-source-dirs:   app
     default-language: Haskell2010
