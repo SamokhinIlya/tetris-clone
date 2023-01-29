@@ -20,8 +20,6 @@ import Data.List
 import Control.Monad
 import System.Exit
 
-import Debug.Trace
-
 data Data = Data
   { state               :: State
   , field               :: Field
@@ -29,7 +27,7 @@ data Data = Data
   , gravityTimer        :: Timer
   , clearRowFlashTimer :: Timer
   , countdown           :: Int
-  }
+  } deriving Show
 
 data State =
   SpawnPiece
@@ -74,7 +72,7 @@ update d canvas input dt = do
                   fallingToFrozen Falling = Frozen
                   fallingToFrozen c       = c 
           (newData', hasFullRows) =
-            ( newData { field = field newData // [((y, x), Disappearing) | y <- frozenRowYs, x <- frozenRowXs]}
+            ( newData { field = field newData // [(Pos (y, x), Disappearing) | y <- frozenRowYs, x <- frozenRowXs]}
             , isJust . find (all isFrozen) $ rows
             )
             where
@@ -128,7 +126,7 @@ update d canvas input dt = do
     drawDisappearing = case state newD of
       BlinkDisappearingRows { doShow = show } -> show
       _                                       -> False
-    (_, (fh, fw)) = bounds $ field newD
+    (_, Pos (fh, fw)) = bounds $ field newD
     cellPx        = 30
     (y0, x0)      = (ch `div` 2 - (fh * cellPx) `div` 2, cw `div` 2 - (fw * cellPx) `div` 2)
 
@@ -149,16 +147,16 @@ tryFall field =
     xs = [0..width - 1]
     ys = [y | y <- drop 1 . reverse $ [0..height - 1]
             , let
-                dstIsFree = all (isEmpty . \x -> field ! (y + 1, x)) xs
-                srcHasFalling = any (isFalling . \x -> field ! (y, x)) xs
+                dstIsFree = all (isEmpty . \x -> field ! Pos (y + 1, x)) xs
+                srcHasFalling = any (isFalling . \x -> field ! Pos (y, x)) xs
               in
                 dstIsFree && srcHasFalling                                 ]
   in
     if null ys
     then Nothing
     else Just $ field
-      // [((y    , x), Empty         ) | y <- ys, x <- xs]
-      // [((y + 1, x), field ! (y, x)) | y <- ys, x <- xs]
+      // [(Pos (y    , x), Empty             ) | y <- ys, x <- xs]
+      // [(Pos (y + 1, x), field ! Pos (y, x)) | y <- ys, x <- xs]
   where
     (height, width) = dims field
 
@@ -179,7 +177,7 @@ tryMovePiece pos d m = do
           MoveRight -> (y'    , x' + 1)
           MoveDown  -> (y' + 1, x'    )
       in
-        if all (inRange $ bounds $ field d) [(y, x), (y + pieceHeight - 1, x + pieceWidth - 1)]
+        if all (inRange $ bounds $ field d) [Pos (y, x), Pos (y + pieceHeight - 1, x + pieceWidth - 1)]
         then Just (y, x)
         else Nothing
     if hasCollided (piece d) pos' (field d)
@@ -191,7 +189,6 @@ tryTurnPiece pos d t =
   let
     turned = turn t $ piece d
     (pieceHeight, pieceWidth) = Piece.dims turned
-    bp = blueprint turned
     newPos =
       let
         (y, x) = pos
@@ -200,8 +197,6 @@ tryTurnPiece pos d t =
         ( if y + pieceHeight > height then height - pieceHeight else y
         , if x + pieceWidth  > width  then width  - pieceWidth  else x
         )
-    (y0, x0) = newPos
-    (y1, x1) = (y0 + pieceHeight - 1, x0 + pieceWidth - 1)
   in
     if hasCollided turned newPos (field d)
     then Nothing
@@ -219,8 +214,9 @@ movePiece piece pos = copyIf isFalling (blueprint piece) pos (Piece.dims piece) 
 hasCollided :: Piece -> (Int, Int) -> Field -> Bool
 hasCollided piece pos field =
   isJust . find collides
-    $ [(blueprint piece ! (bpY, bpX), field ! (y, x)) | (bpY, y) <- zip [0..] [y0..y1]
-                                                      , (bpX, x) <- zip [0..] [x0..x1]]
+    $ [(blueprint piece ! Pos (bpY, bpX)
+      , field           ! Pos (y, x)) | (bpY, y) <- zip [0..3] [y0..y1]
+                                      , (bpX, x) <- zip [0..3] [x0..x1]]
   where
     (y0, x0) = pos
     (y1, x1) = (y0 + pieceHeight - 1, x0 + pieceWidth - 1)

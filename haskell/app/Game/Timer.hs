@@ -1,6 +1,6 @@
 module Game.Timer (Timer, mkTimer, tick) where
 
-data Timer = Timer { timespan :: Double, current :: Double }
+data Timer = Timer { timespan :: Double, current :: Double } deriving Show
 
 mkTimer :: Double -> Timer
 mkTimer ts = Timer { timespan = ts, current = ts }

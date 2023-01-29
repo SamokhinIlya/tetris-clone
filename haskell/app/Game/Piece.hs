@@ -47,14 +47,14 @@ fromBin bin =
   , fromBool $ bin .&. 0b_0001 /= 0
   ]
 
-mkBlueprint :: [Word8] -> Array (Int, Int) Cell
-mkBlueprint bs = listArray ((0, 0), (3, 3)) $ concatMap fromBin bs
+mkBlueprint :: [Word8] -> Array Pos Cell
+mkBlueprint bs = listArray (Pos (0, 0), Pos (3, 3)) $! concatMap fromBin bs
 
 mkPiece :: Piece
 mkPiece = Piece { ty = Square, rotations = 0 }
 
 next :: Piece -> Piece
-next p = p { ty = toEnum (succ (fromEnum (ty p)) `mod` (fromEnum (maxBound :: PieceType) + 1)) }
+next p = p { ty = toEnum (succ (fromEnum (ty p)) `mod` (fromEnum (maxBound :: PieceType) + 1)), rotations = 0 }
 
 -- TODO: mod or %?
 turn :: Turn -> Piece -> Piece
@@ -72,20 +72,20 @@ dims p =
     , maybe w (w-) . findIndex (any isFalling) . reverse $ cols
     )
 
-rowsCols :: Array (Int, Int) Cell -> ([[Cell]], [[Cell]])
+rowsCols :: Array Pos Cell -> ([[Cell]], [[Cell]])
 rowsCols a =
   ( chunksOf w . map snd .                    assocs $ a
   , chunksOf h . map snd . sortBy colsFirst . assocs $ a
   )
   where
     (h, w) = Field.dims a
-    colsFirst ((_, x), _) ((_, x'), _) = compare x x'
+    colsFirst (Pos (_, x), _) (Pos (_, x'), _) = compare x x'
 
 isFalling :: Cell -> Bool
 isFalling Falling = True
 isFalling _       = False
 
-blueprint :: Piece -> Array (Int, Int) Cell
+blueprint :: Piece -> Array Pos Cell
 blueprint p =
   let
     rotated = iterate (rotate False) bp !! rotations p
@@ -97,7 +97,7 @@ blueprint p =
         )
     getOrEmpty i a = if inRange (bounds a) i then a ! i else Empty
   in
-    array (bounds rotated) [((y, x), getOrEmpty (y + srcY, x + srcX) rotated) | (y, x) <- range (bounds rotated)]
+    array (bounds rotated) [(Pos (y, x), getOrEmpty (Pos (y + srcY, x + srcX)) rotated) | Pos (y, x) <- range (bounds rotated)]
   where 
     bp = case ty p of
       Square -> mkBlueprint

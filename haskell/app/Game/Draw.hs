@@ -26,13 +26,13 @@ field f (y0, x0) cellPx showDisappearing canvas = do
       where
         (y1  , x1  ) = (y0 + fhPx, x0 + fwPx)
         (fhPx, fwPx) =
-          let (_, (fh, fw)) = bounds f
+          let (_, Pos (fh, fw)) = bounds f
           in
             ((fh + 1) * cellPx, (fw + 1) * cellPx)
 
     drawCells :: Canvas -> IO ()
     drawCells canvas =
-      forM_ (drawable f) $ \((y, x), c) ->
+      forM_ (drawable f) $ \(Pos (y, x), c) ->
         cell (cellColor c) (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas
       where
         drawable f = filter isDrawable $ assocs f
