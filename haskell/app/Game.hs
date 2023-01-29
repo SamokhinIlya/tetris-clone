@@ -79,7 +79,7 @@ update d canvas input dt = do
               rows = fst . rowsCols $ field newData
 
               frozenRowYs = map fst . filter (all isFrozen . snd) $ zip [0..] rows
-              frozenRowXs = [0..snd . dims $ field newData]
+              frozenRowXs = [0..(snd . dims $ field newData) - 1]
 
               isFrozen Frozen = True
               isFrozen _      = False
