@@ -107,14 +107,12 @@ update d canvas input dt = do
           clear c            = c
       FallAfterClear ->
           if hasTicked
-          then
-            let f = tryFall $ field d
-            in case f of
-              Just field' -> d { state = ChangePiece, field = amap fallingToFrozen field' }
-                where
-                  fallingToFrozen Falling = Frozen
-                  fallingToFrozen c       = c
-              Nothing -> d
+          then case tryFall $ field d of
+            Nothing -> d { state = ChangePiece, field = amap fallingToFrozen (field d) }
+              where
+                fallingToFrozen Falling = Frozen
+                fallingToFrozen c       = c
+            Just field' -> d { field = field' }
           else d
       ChangePiece -> d { state = SpawnPiece, piece = next $ piece d }
 
@@ -145,18 +143,20 @@ tryFall :: Field -> Maybe Field
 tryFall field =
   let
     xs = [0..width - 1]
-    ys = [y | y <- drop 1 . reverse $ [0..height - 1]
-            , let
-                dstIsFree = all (isEmpty . \x -> field ! Pos (y + 1, x)) xs
-                srcHasFalling = any (isFalling . \x -> field ! Pos (y, x)) xs
-              in
-                dstIsFree && srcHasFalling                                 ]
+    lowestFloatingY = find isFloating . drop 1 . reverse $ [0..height - 1]
+      where
+        isFloating y =
+          any (isFalling . \x -> field ! Pos (y, x)) xs
+          && all (isEmpty . \x -> field ! Pos (y + 1, x)) xs
   in
-    if null ys
-    then Nothing
-    else Just $ field
-      // [(Pos (y    , x), Empty             ) | y <- ys, x <- xs]
-      // [(Pos (y + 1, x), field ! Pos (y, x)) | y <- ys, x <- xs]
+    case lowestFloatingY of
+      Nothing -> Nothing
+      Just y ->
+        let ys = [0..y]
+        in
+          Just $ field
+            // [(Pos (y    , x), Empty             ) | y <- ys, x <- xs]
+            // [(Pos (y + 1, x), field ! Pos (y, x)) | y <- ys, x <- xs]
   where
     (height, width) = dims field
 
@@ -215,8 +215,8 @@ hasCollided :: Piece -> (Int, Int) -> Field -> Bool
 hasCollided piece pos field =
   isJust . find collides
     $ [(blueprint piece ! Pos (bpY, bpX)
-      , field           ! Pos (y, x)) | (bpY, y) <- zip [0..3] [y0..y1]
-                                      , (bpX, x) <- zip [0..3] [x0..x1]]
+      , field           ! Pos (y, x)) | (bpY, y) <- zip [0..] [y0..y1]
+                                      , (bpX, x) <- zip [0..] [x0..x1]]
   where
     (y0, x0) = pos
     (y1, x1) = (y0 + pieceHeight - 1, x0 + pieceWidth - 1)
@@ -225,6 +225,5 @@ hasCollided piece pos field =
 
     collides (Falling, Falling) = False
     collides (Falling, Empty  ) = False
-    collides (Empty  , Falling) = False
-    collides (Empty  , Empty  ) = False
-    collides (_      , _      ) = True
+    collides (Falling, _      ) = True
+    collides (_      , _      ) = False
