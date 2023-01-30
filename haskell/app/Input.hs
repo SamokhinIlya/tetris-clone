@@ -7,7 +7,7 @@ module Input
   , Button, mkButton, update, isPressed, justPressed
   ) where
 
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map, fromList)
 
 data Input = Input
   { mouse    :: Mouse
@@ -20,26 +20,26 @@ mkInput = Input
   , keyboard = mkKeyboard
   }
 
-type Mouse = Map.Map MouseKey Button
+type Mouse = Map MouseKey Button
 
-data MouseKey =
-  MouseLeft
+data MouseKey
+  = MouseLeft
   | MouseRight
   deriving (Enum, Bounded, Eq, Ord, Show)
 
 mkMouse :: Mouse
-mkMouse = Map.fromList $ map (, mkButton) ([minBound..maxBound] :: [MouseKey])
+mkMouse = fromList $ map (, mkButton) ([minBound..maxBound] :: [MouseKey])
 
-type Keyboard = Map.Map KBKey Button
+type Keyboard = Map KBKey Button
 
-data KBKey =
-  KBLeft
+data KBKey
+  = KBLeft
   | KBRight
   | KBDown
   deriving (Enum, Bounded, Eq, Ord, Show)
 
 mkKeyboard :: Keyboard
-mkKeyboard = Map.fromList $ map (, mkButton) ([minBound..maxBound] :: [KBKey])
+mkKeyboard = fromList $ map (, mkButton) ([minBound..maxBound] :: [KBKey])
 
 data Button = Button
   { prev :: Bool

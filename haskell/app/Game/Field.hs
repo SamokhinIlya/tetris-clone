@@ -2,38 +2,38 @@
 
 module Game.Field where
 
-import GHC.Ix
 import GHC.Arr
+import GHC.Ix
 
-import Debug.Trace
-
-data Cell = Empty | Falling | Frozen | Disappearing deriving Show
+data Cell
+  = Empty
+  | Falling
+  | Frozen
+  | Disappearing
+  deriving (Eq, Show)
 
 -- newtype needed to show array index error with values
 -- default instance for pairs doesn't do that
 newtype Pos = Pos (Int, Int) deriving (Eq, Ord, Show)
 
-type Field = Array Pos Cell
-
 instance Ix Pos where
-  range (Pos b, Pos e) = map Pos $ range (b, e)
+  range (Pos b, Pos e) =
+    map Pos $ range (b, e)
 
   index (Pos b, Pos e) (Pos i)
     | inRange (b, e) i = unsafeIndex (b, e) i
     | otherwise        = GHC.Ix.indexError (b, e) i "Pos"
 
-  inRange (Pos b, Pos e) (Pos i) = inRange (b, e) i
+  inRange (Pos b, Pos e) (Pos i) =
+    inRange (b, e) i
+
+type Field = Array Pos Cell
 
 mkField :: Field
-mkField =
-  array
-    (Pos (y0, x0), Pos (y1, x1))
-    [(Pos (y, x), Empty) | y <- [y0..y1]
-                         , x <- [x0..x1] ]
+mkField = array bnds [(i, Empty) | i <- range bnds]
   where
-    (y0, y1) = (0 , h - 1)
-    (x0, x1) = (0 , w - 1)
-    (h, w)   = (20, 10   )
+    bnds = (Pos (0, 0), Pos (h-1, w-1))
+    (h, w) = (20, 10   )
 
 dims :: Array Pos Cell -> (Int, Int)
 dims a =
@@ -41,15 +41,15 @@ dims a =
   in (y1 - y0 + 1, x1 - x0 + 1)
 
 copyIf :: (Cell -> Bool) -> Field -> (Int, Int) -> (Int, Int) -> Field -> Field
-copyIf pred grid (y0, x0) (y1', x1') self =
+copyIf pred src (y0, x0) (y1', x1') dst =
   let
-    (h, w) = dims self
+    (h, w) = dims dst
     y1 = min (y0 + y1' - 1) (h - 1)
     x1 = min (x0 + x1' - 1) (w - 1)
   in
-    self // [(Pos (y', x'), grid ! Pos (y, x)) | (y, y') <- zip [0..] [y0..y1]
-                                               , (x, x') <- zip [0..] [x0..x1]
-                                               , pred $ grid ! Pos (y, x)     ]
+    dst // [(Pos (y', x'), src ! Pos (y, x)) | (y, y') <- zip [0..] [y0..y1]
+                                             , (x, x') <- zip [0..] [x0..x1]
+                                             , pred $ src ! Pos (y, x)      ]
 
 rotate :: Bool -> Field -> Field
 rotate left f

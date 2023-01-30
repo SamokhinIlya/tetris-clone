@@ -1,13 +1,11 @@
 module Game.Draw where
 
-import Canvas
-
-import Game.Field
-
+import Control.Monad
 import Data.Array
 import Data.Array.Storable
 
-import Control.Monad
+import Canvas
+import Game.Field
 
 type Point = (Int, Int)
 
@@ -18,24 +16,21 @@ field f (y0, x0) cellPx showDisappearing canvas = do
   where
     drawBorder :: Canvas -> IO ()
     drawBorder canvas =
-      forM_
-        [((y, x), white) | y <- [y0..y1]
-                         , x <- [x0..x1]
-                         , y `elem` [y0, y1] || x `elem` [x0, x1] ]
-        (uncurry $ writeArray canvas)
+      forM_ [((y, x), white) | y <- [y0..y1], x <- [x0..x1], isBorder y x] $
+        uncurry $ writeArray canvas
       where
-        (y1  , x1  ) = (y0 + fhPx, x0 + fwPx)
-        (fhPx, fwPx) =
-          let (_, Pos (fh, fw)) = bounds f
-          in
-            ((fh + 1) * cellPx, (fw + 1) * cellPx)
+        isBorder y x = y `elem` [y0, y1] || x `elem` [x0, x1]
+
+        (y1, x1) = (y0 + h * cellPx, x0 + w * cellPx)
+          where
+            (h, w) = dims f
 
     drawCells :: Canvas -> IO ()
     drawCells canvas =
-      forM_ (drawable f) $ \(Pos (y, x), c) ->
-        cell (cellColor c) (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas
+      forM_ drawableCells $
+        \(Pos (y, x), c) -> cell (cellColor c) (y0 + y * cellPx, x0 + x * cellPx) cellPx canvas
       where
-        drawable f = filter isDrawable $ assocs f
+        drawableCells = filter isDrawable $ assocs f
           where
             isDrawable (_, c) = case c of
               Falling      -> True
@@ -48,21 +43,18 @@ field f (y0, x0) cellPx showDisappearing canvas = do
 
 cell :: Pixel -> Point -> Int -> Canvas -> IO ()
 cell color (y, x) cellPx canvas = do
-  forM_
-    (zip [cellPx, cellPx - 2, cellPx - 8] $ cycle [black, color])
-    (\(px, color) -> fillSquare color (x + cellPx - px, y + cellPx - px) (x + px, y + px) canvas)
+  forM_ (zip [cellPx, cellPx - 2, cellPx - 8] $ cycle [black, color]) $
+    \(px, color) -> fillSquare color (y + cellPx - px, x + cellPx - px) (y + px - 1, x + px - 1) canvas
 
 fillSquare :: Pixel -> Point -> Point -> Canvas -> IO ()
-fillSquare color (x0, y0) (x1, y1) canvas =
-  forM_
-    [((y, x), color) | y <- [y0..(y1 - 1)]
-                     , x <- [x0..(x1 - 1)] ]
-    (uncurry $ writeArray canvas)
+fillSquare color (y0, x0) (y1, x1) canvas =
+  forM_ [((y, x), color) | y <- [y0..y1], x <- [x0..x1]] $
+    uncurry $ writeArray canvas
 
 clear :: Canvas -> IO ()
 clear canvas = do
-  ((y0, x0), (y1, x1)) <- getBounds canvas
-  fillSquare black (x0, y0) (x1 + 1, y1 + 1) canvas
+  (b, e) <- getBounds canvas
+  fillSquare black b e canvas
 
 {-
 TODO: why this won't work (recursive) but forM_ does?
