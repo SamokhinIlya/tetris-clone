@@ -1,4 +1,4 @@
-module Game.Timer (Timer , mkTimer , tick) where
+module Game.Timer (Timer, mkTimer, tick) where
 
 data Timer = Timer
   { timespan :: Double

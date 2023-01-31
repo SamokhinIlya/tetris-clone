@@ -1,18 +1,15 @@
-{-# LANGUAGE BlockArguments #-}
-
 module Main (main) where
 
 import Prelude hiding (lookup)
 
 import GHC.Float
-import Control.Monad
 import Data.Array.Storable
 import Data.ByteString (ByteString, pack)
 import Data.Map.Strict (Map, empty, insertWith, mapWithKey, lookup)
 import Data.Maybe
 
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Word
 import Foreign.Ptr
 import Foreign.ForeignPtr
@@ -21,13 +18,13 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Interact
 import Graphics.Gloss.Interface.IO.Game
 
-import qualified Game
+import Game qualified
 
 import Canvas (Canvas, Pixel)
-import qualified Canvas
+import Canvas qualified
 
 import Input hiding (update)
-import qualified Input (update)
+import Input qualified (update)
 
 main :: IO ()
 main = do
@@ -44,7 +41,7 @@ data Data = Data
   , height        :: Int
   , gameData      :: Game.Data
   , input         :: Input
-  , keyboardState :: Map KBKey (NonEmpty KeyState)
+  , keyboardState :: Map KbKey (NonEmpty KeyState)
   , mouseState    :: Map MouseKey (NonEmpty KeyState)
   }
 
@@ -79,9 +76,9 @@ handleEvent event d = pure $ case event of
     updateKeyboardState :: SpecialKey -> KeyState -> Maybe Data
     updateKeyboardState key state = do
       k <- case key of
-        KeyDown  -> Just KBDown
-        KeyLeft  -> Just KBLeft
-        KeyRight -> Just KBRight
+        KeyDown  -> Just KbDown
+        KeyLeft  -> Just KbLeft
+        KeyRight -> Just KbRight
         _        -> Nothing
       Just d { keyboardState = insertWith NonEmpty.append k (NonEmpty.singleton state) (keyboardState d) }
 
@@ -110,7 +107,7 @@ update dt d = do
       , mouse    = mapWithKey (updateKey $ mouseState    d) (mouse    $ input d)
       }
       where
-        updateKey events k b = maybe (Input.update (isPressed b) b) (foldr (Input.update . asBool) b) (lookup k events)
-
-        asBool Down = True
-        asBool Up   = False
+        updateKey events key prev =
+          let defaultButton = Input.update (isPressed prev) prev
+          in
+            maybe defaultButton (foldr (Input.update . (==Down)) prev) (lookup key events)

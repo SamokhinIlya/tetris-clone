@@ -1,6 +1,3 @@
-{-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE NumericUnderscores #-}
-
 module Game.Piece
   ( Piece
   , mkPiece
@@ -20,7 +17,7 @@ import Data.Maybe
 import Data.Word
 
 import Game.Field hiding (dims)
-import qualified Game.Field as Field (dims)
+import Game.Field qualified as Field (dims)
 import Game.Input
 
 data Piece = Piece

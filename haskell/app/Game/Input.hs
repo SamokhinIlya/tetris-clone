@@ -1,7 +1,8 @@
 module Game.Input where
 
-import Input
 import Data.Map.Strict
+
+import Input
 
 data Move
   = MoveLeft
@@ -11,11 +12,11 @@ data Move
 
 mkMove :: Input -> Maybe Move
 mkMove input
-  | isPressed $ keyboard input ! KBDown = Just MoveDown
+  | isPressed $ keyboard input ! KbDown = Just MoveDown
   | otherwise =
     let
-      moveLeft  = justPressed $ keyboard input ! KBLeft
-      moveRight = justPressed $ keyboard input ! KBRight
+      moveLeft  = justPressed $ keyboard input ! KbLeft
+      moveRight = justPressed $ keyboard input ! KbRight
     in
       case (moveLeft, moveRight) of
         (True , False) -> Just MoveLeft

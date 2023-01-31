@@ -1,7 +1,7 @@
 module Canvas where
 
-import Data.Word
 import Data.Array.Storable
+import Data.Word
 
 type Canvas = StorableArray (Int, Int) Pixel
 

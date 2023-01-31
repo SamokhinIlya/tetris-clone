@@ -1,9 +1,7 @@
-{-# LANGUAGE TupleSections #-}
-
 module Input
   ( Input, mkInput, mouse, keyboard
   , Mouse, MouseKey(..)
-  , Keyboard, KBKey(..)
+  , Keyboard, KbKey(..)
   , Button, mkButton, update, isPressed, justPressed
   ) where
 
@@ -30,16 +28,16 @@ data MouseKey
 mkMouse :: Mouse
 mkMouse = fromList $ map (, mkButton) ([minBound..maxBound] :: [MouseKey])
 
-type Keyboard = Map KBKey Button
+type Keyboard = Map KbKey Button
 
-data KBKey
-  = KBLeft
-  | KBRight
-  | KBDown
+data KbKey
+  = KbLeft
+  | KbRight
+  | KbDown
   deriving (Enum, Bounded, Eq, Ord, Show)
 
 mkKeyboard :: Keyboard
-mkKeyboard = fromList $ map (, mkButton) ([minBound..maxBound] :: [KBKey])
+mkKeyboard = fromList $ map (, mkButton) ([minBound..maxBound] :: [KbKey])
 
 data Button = Button
   { prev :: Bool
