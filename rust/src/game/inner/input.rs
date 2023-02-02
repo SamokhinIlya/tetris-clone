@@ -16,9 +16,9 @@ impl From<&Input> for Option<Move> {
             let move_left = input.keyboard.left.just_pressed();
             let move_right = input.keyboard.right.just_pressed();
             match (move_left, move_right) {
-                (true, true) | (false, false) => None,
                 (true, false) => Some(Move::Left),
                 (false, true) => Some(Move::Right),
+                _             => None,
             }
         }
     }
@@ -35,9 +35,9 @@ impl From<&Input> for Option<Turn> {
         let left = input.mouse.left.just_pressed();
         let right = input.mouse.right.just_pressed();
         match (left, right) {
-            (true, true) | (false, false) => None,
             (true, false) => Some(Turn::Left),
             (false, true) => Some(Turn::Right),
+            _             => None,
         }
     }
 }

@@ -54,9 +54,13 @@ impl Data {
 pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
     let mut canvas = Canvas::from_raw(raw_canvas);
 
-    let mov = Option::<Move>::from(input);
-    let turn = Option::<Turn>::from(input);
     let tick = data.gravity_timer.tick(dt);
+    let mov = if tick {
+        Some(Move::Down)
+    } else {
+        Option::<Move>::from(input)
+    };
+    let turn = Option::<Turn>::from(input);
 
     let mut show_disappearing = true;
 
@@ -69,18 +73,14 @@ pub fn update(data: &mut Data, raw_canvas: &mut dyn RawCanvas, input: &Input, dt
         }
         State::Spawned { pos } => {
             let mut new_pos = turn.and_then(|t| try_turn_piece(data, t, pos)).unwrap_or(pos);
-            new_pos = if tick {
-                if let Some(p) = try_move_piece(data, Move::Down, new_pos) {
-                    p
-                } else {
+            new_pos = mov.and_then(|m| try_move_piece(data, m, new_pos)).unwrap_or_else(|| {
+                if tick {
                     data.field.iter_mut()
                         .filter(|c| **c == Cell::Falling)
                         .for_each(|c| *c = Cell::Frozen);
-                    new_pos
                 }
-            } else {
-                mov.and_then(|m| try_move_piece(data, m, new_pos)).unwrap_or(new_pos)
-            };
+                new_pos
+            });
 
             let mut has_full_rows = false;
             data.field.rows_mut()
@@ -191,9 +191,9 @@ fn try_fall(cells: &mut Field) -> bool {
 }
 
 fn try_move_piece(data: &mut Data, mov: Move, pos: [usize; 2]) -> Option<[usize; 2]> {
-    let [piece_height, piece_width] = data.piece.dims();
     let new_pos = {
         let [height, width] = [data.field.height(), data.field.width()];
+        let [piece_height, piece_width] = data.piece.dims();
 
         let [y, x] = pos;
         let [y, x] = match mov {
@@ -208,74 +208,62 @@ fn try_move_piece(data: &mut Data, mov: Move, pos: [usize; 2]) -> Option<[usize;
         [y, x]
     };
 
-    let blueprint = data.piece.blueprint();
-    {
-        let [y0, x0] = new_pos;
-        let [y1, x1] = [y0 + piece_height, x0 + piece_width];
-
-        for (bp_y, y) in (y0..y1).enumerate() {
-            for (bp_x, x) in (x0..x1).enumerate() {
-                let src = blueprint[[bp_y, bp_x]];
-                let dst = data.field[[y, x]];
-
-                if src == Cell::Falling && !(dst == Cell::Falling || dst == Cell::Empty) {
-                    return None
-                }
-            }
-        }
+    if has_collided(&data.piece, &data.field, new_pos) {
+        return None
     }
 
-    data.field.iter_mut()
-        .filter(|c| **c == Cell::Falling)
-        .for_each(|c| *c = Cell::Empty);
-
-    data.field.copy_if(&blueprint, new_pos, [piece_height, piece_width], |c| *c == Cell::Falling);
-
+    move_piece(&mut data.field, &data.piece, new_pos);
     Some(new_pos)
 }
 
 fn try_turn_piece(data: &mut Data, turn: Turn, pos: [usize; 2]) -> Option<[usize; 2]> {
-    let new_pos;
-
     let mut turned = data.piece;
     turned.turn(turn);
-    {
+
+    let new_pos = {
+        let [height, width] = [data.field.height(), data.field.width()];
         let [piece_height, piece_width] = turned.dims();
-        let blueprint = turned.blueprint();
 
-        let [y0, x0] = {
-            let [height, width] = [data.field.height(), data.field.width()];
+        let [y, x] = pos;
+        [
+            if y + piece_height > height { height - piece_height } else { y },
+            if x + piece_width > width { width - piece_width } else { x },
+        ]
+    };
 
-            let [mut y, mut x] = pos;
-            if y + piece_height > height {
-                y = height - piece_height;
-            }
-            if x + piece_width > width {
-                x = width - piece_width;
-            }
-            new_pos = [y, x];
-            new_pos
-        };
-        let [y1, x1] = [y0 + piece_height, x0 + piece_width];
+    if has_collided(&data.piece, &data.field, new_pos) {
+        return None
+    }
 
-        for (bp_y, y) in (y0..y1).enumerate() {
-            for (bp_x, x) in (x0..x1).enumerate() {
-                let src = blueprint[[bp_y, bp_x]];
-                let dst = data.field[[y, x]];
+    data.piece = turned;
+    move_piece(&mut data.field, &data.piece, new_pos);
+    Some(new_pos)
+}
 
-                if src == Cell::Falling && !(dst == Cell::Falling || dst == Cell::Empty) {
-                    return None
-                }
+fn has_collided(piece: &Piece, field: &Field, [y0, x0]: [usize; 2]) -> bool {
+    let [piece_height, piece_width] = piece.dims();
+    let blueprint = piece.blueprint();
+
+    let [y1, x1] = [y0 + piece_height, x0 + piece_width];
+
+    for (bp_y, y) in (y0..y1).enumerate() {
+        for (bp_x, x) in (x0..x1).enumerate() {
+            let src = blueprint[[bp_y, bp_x]];
+            let dst = field[[y, x]];
+
+            if src == Cell::Falling && !(dst == Cell::Falling || dst == Cell::Empty) {
+                return true
             }
         }
     }
 
-    data.field.iter_mut()
+    false
+}
+
+fn move_piece(field: &mut Field, piece: &Piece, pos: [usize; 2]) {
+    field.iter_mut()
         .filter(|c| **c == Cell::Falling)
         .for_each(|c| *c = Cell::Empty);
 
-    data.piece = turned;
-    data.field.copy_if(&data.piece.blueprint(), new_pos, data.piece.dims(), |c| *c == Cell::Falling);
-
-    Some(new_pos)
+    field.copy_if(&piece.blueprint(), pos, piece.dims(), |c| *c == Cell::Falling);
 }

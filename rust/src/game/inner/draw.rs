@@ -1,3 +1,7 @@
+use std::iter::zip;
+
+use itertools::{chain, iproduct};
+
 use crate::game::RawCanvas;
 
 use super::field::Cell;
@@ -10,48 +14,34 @@ pub fn grid<const N: usize, const M: usize>(
     [y0, x0]: [usize; 2],
     show_disappearing: bool,
 ) {
-    let bucket_width_px = bucket.width() * cell_px;
-    let bucket_height_px = bucket.height() * cell_px;
+    // draw border
+    {
+        let y1 = y0 + bucket.height() * cell_px - 1;
+        let x1 = x0 + bucket.width()  * cell_px - 1;
 
-    let [y1, x1] = [y0 + bucket_height_px, x0 + bucket_width_px];
-
-    for y in y0..y1 {
-        for x in x0..x1 {
-            if y == y0 || y == (y1 - 1) || x == x0 || x == (x1 - 1) {
-                if let Some(pixel) = canvas.get_mut(x, y) {
-                    *pixel = color::WHITE;
-                }
+        for (y, x) in chain(iproduct!(y0..=y1, [x0, x1]), iproduct!([y0, y1], (x0..=x1))) {
+            if let Some(pixel) = canvas.get_mut(x, y) {
+                *pixel = color::WHITE;
             }
         }
     }
 
-    for (y, row) in bucket.rows().enumerate() {
-        for (x, cell) in row.iter().enumerate() {
-            if *cell == Cell::Falling || *cell == Cell::Frozen || (*cell == Cell::Disappearing && show_disappearing) {
-                let color = if *cell == Cell::Falling { color::BLUE } else { color::WHITE };
-                self::cell(canvas, cell_px, [y0 + y * cell_px, x0 + x * cell_px], color);
-            }
-        }
-    }
+    let is_drawable = |c| c == Cell::Falling || c == Cell::Frozen || (c == Cell::Disappearing && show_disappearing);
+    let to_color = |c| if c == Cell::Falling { color::BLUE } else { color::WHITE };
+    bucket.iter_with_idx()
+        .filter(|(_, &c)| is_drawable(c))
+        .map(|(i, &c)| (i, to_color(c)))
+        .for_each(|([y, x], color)| {
+            self::cell(canvas, cell_px, [y0 + y * cell_px, x0 + x * cell_px], color);
+        });
 }
 
 pub fn cell(canvas: &mut Canvas, cell_px: usize, [y0, x0]: [usize; 2], color: u32) {
-    let color_switch = [cell_px - 2, cell_px - 8];
+    let borders = [cell_px, cell_px - 2, cell_px - 8];
+    let colors = [color::BLACK, color].into_iter().cycle();
 
-    fn current(foreground: bool, color: u32) -> u32 {
-        if foreground {
-            color
-        } else {
-            color::BLACK
-        }
-    }
-
-    let mut foreground = false;
-    fill_square(canvas, current(foreground, color), [y0, x0], [y0 + cell_px, x0 + cell_px]);
-
-    for n in color_switch {
-        foreground = !foreground;
-        fill_square(canvas, current(foreground, color), [y0 + cell_px - n, x0 + cell_px - n], [y0 + n, x0 + n]);
+    for (px, color) in zip(borders, colors) {
+        fill_square(canvas, color, [y0 + cell_px - px, x0 + cell_px - px], [y0 + px, x0 + px]);
     }
 }
 
@@ -73,9 +63,7 @@ fn fill_square(canvas: &mut Canvas, color: u32, [y0, x0]: [usize; 2], [y1, x1]: 
 }
 
 pub fn clear(canvas: &mut Canvas) {
-    let width = canvas.width();
-    let height = canvas.height();
-    fill_square(canvas, color::BLACK, [0, 0], [height, width]);
+    fill_square(canvas, color::BLACK, [0, 0], [canvas.height(), canvas.width()]);
 }
 
 pub struct Canvas<'a> {
@@ -88,7 +76,9 @@ impl<'a> Canvas<'a> {
             inner,
         }
     }
+}
 
+impl Canvas<'_> {
     pub fn width(&self) -> usize {
         self.inner.width()
     }
@@ -101,8 +91,8 @@ impl<'a> Canvas<'a> {
         let width = self.inner.width();
         let height = self.inner.height();
 
-        if x > 0 && x < width && y > 0 && y < height {
-            Some(&mut self.inner[(y*width + x)])
+        if x < width && y < height {
+            Some(&mut self.inner[y*width + x])
         } else {
             None
         }
