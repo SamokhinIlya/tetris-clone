@@ -60,7 +60,7 @@ use windows::{
 };
 
 fn main() -> anyhow::Result<()> {
-    let instance = unsafe { GetModuleHandleA(PCSTR::default()) }.context("GetModuleHandleA failed")?;
+    let instance = unsafe { GetModuleHandleA(PCSTR::null()) }.context("GetModuleHandleA failed")?;
     if instance.is_invalid() {
         bail!("hinstance is invalid: {:?}", instance)
     }
@@ -87,7 +87,7 @@ fn main() -> anyhow::Result<()> {
             HWND(0),
             HMENU(0),
             instance,
-            std::ptr::null()
+            None,
         )
     };
     if window == HWND(0) {
@@ -153,7 +153,7 @@ fn main() -> anyhow::Result<()> {
                 device_context,
                 0, 0, window_width, window_height,
                 0, 0, bitmap.width.num_cast(), bitmap.height.num_cast(),
-                bitmap.ptr as *const _,
+                Some(bitmap.ptr as *const _),
                 &bitmap.info,
                 DIB_RGB_COLORS,
                 SRCCOPY,
