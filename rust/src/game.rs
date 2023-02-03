@@ -14,7 +14,7 @@ use input::{Move, Turn};
 use piece::Piece;
 use timer::Timer;
 
-use crate::lume::{Input, RawCanvas};
+use lume::{Input, RawCanvas};
 
 pub struct Data {
     state: State,
@@ -65,9 +65,9 @@ fn inner(data: &mut Data, canvas: &mut Canvas, input: &Input, dt: f64) {
     let mov = if tick {
         Some(Move::Down)
     } else {
-        Option::<Move>::from(input)
+        Move::try_from(input).ok()
     };
-    let turn = Option::<Turn>::from(input);
+    let turn = Turn::try_from(input).ok();
 
     let mut show_disappearing = true;
 
