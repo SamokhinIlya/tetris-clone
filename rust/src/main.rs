@@ -4,5 +4,5 @@ mod game;
 
 fn main() -> anyhow::Result<()> {
     let mut data = game::Data::default();
-    lume::run(&mut data, game::update)
+    lume::run(&mut data)
 }

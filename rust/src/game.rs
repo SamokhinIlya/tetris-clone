@@ -24,6 +24,13 @@ pub struct Data {
     clear_row_flash_timer: Timer,
 }
 
+impl lume::Data for Data {
+    fn update(&mut self, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
+        let mut canvas = Canvas::from_raw(raw_canvas);
+        inner(self, &mut canvas, input, dt);
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum State {
     SpawnPiece,
@@ -51,13 +58,6 @@ impl Default for Data {
             clear_row_flash_timer: Timer::new(GRAVITY_TICK / 2.0),
         }
     }
-}
-
-pub fn update(data: &mut dyn Any, raw_canvas: &mut dyn RawCanvas, input: &Input, dt: f64) {
-    let data = data.downcast_mut::<Data>().unwrap();
-    let mut canvas = Canvas::from_raw(raw_canvas);
-
-    inner(data, &mut canvas, input, dt);
 }
 
 fn inner(data: &mut Data, canvas: &mut Canvas, input: &Input, dt: f64) {
