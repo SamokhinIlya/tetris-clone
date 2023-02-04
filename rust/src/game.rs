@@ -5,8 +5,6 @@ mod input;
 mod piece;
 mod timer;
 
-use std::any::Any;
-
 use field::{Field, Cell};
 use draw::Canvas;
 use grid::Grid;
