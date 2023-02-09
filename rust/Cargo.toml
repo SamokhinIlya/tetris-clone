@@ -6,6 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.58"
 itertools = "0.10.5"
 lume = { git = "https://github.com/SamokhinIlya/lume" }

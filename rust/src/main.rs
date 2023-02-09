@@ -2,7 +2,7 @@
 
 mod game;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> lume::AnyhowResult {
     let mut data = game::Data::default();
     lume::run(&mut data)
 }
